@@ -1,0 +1,19 @@
+{
+  "provider": {
+    "baseUrl": "${AI_TWIN_BASE_URL}",
+    "apiKey": "${AI_TWIN_API_KEY}",
+    "model": "${AI_TWIN_MODEL}",
+    "temperature": 0.75,
+    "topP": 0.9,
+    "maxTokens": 500,
+    "timeoutMs": 60000
+  },
+  "retrieval": {
+    "topK": 6,
+    "styleK": 4,
+    "maxUnitChars": 700
+  },
+  "memory": {
+    "pendingEnabled": true
+  }
+}

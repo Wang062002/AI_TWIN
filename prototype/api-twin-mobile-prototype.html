@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Twin - 移动端数字分身原型</title>
+  <style>
+    :root {
+      --bg: #e7ebf0;
+      --phone: #f7f8fa;
+      --list: #f5f6f7;
+      --chat: #edf1f4;
+      --line: #e1e4e8;
+      --text: #181c22;
+      --muted: #8c939c;
+      --green: #1aad70;
+      --mine: #95ec69;
+      --bubble: #fff;
+      --dark: #111820;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(145deg, #eef1f4, #d7dde5);
+      color: var(--text);
+    }
+
+    button, input, textarea { font: inherit; }
+    button { border: 0; background: transparent; color: inherit; cursor: pointer; }
+
+    .stage {
+      width: min(100vw, 450px);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+    }
+
+    .phone {
+      position: relative;
+      width: min(100%, 390px);
+      height: min(844px, calc(100vh - 36px));
+      min-height: 720px;
+      overflow: hidden;
+      border: 10px solid var(--dark);
+      border-radius: 42px;
+      background: var(--phone);
+      box-shadow: 0 24px 70px rgba(16, 24, 40, .22);
+    }
+
+    .phone::before {
+      content: "";
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      z-index: 20;
+      width: 98px;
+      height: 24px;
+      border-radius: 0 0 16px 16px;
+      transform: translateX(-50%);
+      background: var(--dark);
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--phone);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(16px);
+      transition: opacity .24s ease, transform .24s ease;
+    }
+
+    .screen.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0);
+    }
+
+    .statusbar {
+      height: 44px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      padding: 0 22px 7px;
+      color: #202833;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .topbar {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: #f7f8fa;
+    }
+
+    .topbar h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 650;
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #2a3038;
+      font-size: 24px;
+    }
+
+    .search-wrap {
+      padding: 12px 14px;
+      background: #f7f8fa;
+    }
+
+    .search {
+      height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border-radius: 8px;
+      background: #ebeef1;
+      color: #9aa1aa;
+      font-size: 14px;
+    }
+
+    .search input {
+      width: 100%;
+      border: 0;
+      outline: 0;
+      background: transparent;
+    }
+
+    .privacy-strip {
+      margin: 0 14px 10px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #eef8f3;
+      color: #42645a;
+      font-size: 12px;
+      line-height: 1.45;
+      text-align: center;
+    }
+
+    .sessions {
+      flex: 1;
+      overflow: auto;
+      background: #fff;
+    }
+
+    .session {
+      height: 74px;
+      display: grid;
+      grid-template-columns: 48px 1fr auto;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 0 14px;
+      border-bottom: 1px solid #eef0f2;
+      text-align: left;
+      background: #fff;
+    }
+
+    .session:active { background: #f2f4f6; }
+
+    .avatar {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 800;
+      background: #667085;
+      overflow: hidden;
+      flex: none;
+    }
+
+    .avatar.family { background: linear-gradient(135deg, #16845f, #42b883); }
+    .avatar.friend { background: linear-gradient(135deg, #315caa, #8a63c7); }
+    .avatar.work { background: linear-gradient(135deg, #57606b, #9a896b); }
+    .avatar.new { background: linear-gradient(135deg, #ef7c45, #f5bc4d); }
+
+    .session-main { min-width: 0; }
+    .session-name {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 16px;
+      line-height: 1.25;
+    }
+
+    .session-name strong {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-weight: 560;
+    }
+
+    .badge {
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(26,173,112,.12);
+      color: #208661;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .last {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 13px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .time {
+      align-self: start;
+      padding-top: 17px;
+      color: #a1a7af;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .tabbar {
+      height: 58px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid var(--line);
+      background: #f7f8fa;
+    }
+
+    .tab {
+      display: grid;
+      place-items: center;
+      color: #69717b;
+      font-size: 12px;
+    }
+
+    .tab.active { color: var(--green); }
+
+    .chat-head {
+      height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--line);
+      background: #f7f8fa;
+    }
+
+    .back {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      font-size: 26px;
+    }
+
+    .chat-title {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .chat-title strong {
+      display: block;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-size: 17px;
+      font-weight: 650;
+    }
+
+    .chat-title span {
+      display: block;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .call-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .call-actions button {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #4d5560;
+    }
+
+    .messages {
+      flex: 1;
+      overflow: auto;
+      padding: 12px 12px 16px;
+      background: var(--chat);
+    }
+
+    .local-note {
+      width: fit-content;
+      max-width: 96%;
+      margin: 0 auto 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #fff;
+      color: #7b828b;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .msg-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin: 10px 0;
+    }
+
+    .msg-row.mine { justify-content: flex-end; }
+    .msg-row.mine .avatar { order: 2; }
+
+    .mini {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    .bubble {
+      max-width: 248px;
+      padding: 9px 11px;
+      border-radius: 8px;
+      background: var(--bubble);
+      font-size: 14px;
+      line-height: 1.55;
+      word-break: break-word;
+      white-space: pre-wrap;
+      box-shadow: 0 1px 2px rgba(10, 20, 30, .05);
+    }
+
+    .mine .bubble { background: var(--mine); }
+
+    .memory-card {
+      margin: 12px 0;
+      padding: 12px;
+      border: 1px solid #cfe7dc;
+      border-radius: 12px;
+      background: #f0faf5;
+      color: #315247;
+    }
+
+    .memory-card header {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 7px;
+    }
+
+    .memory-card p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .memory-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 9px;
+    }
+
+    .memory-actions button {
+      padding: 5px 9px;
+      border-radius: 7px;
+      background: #fff;
+      color: #315247;
+      font-size: 12px;
+    }
+
+    .memory-actions .confirm {
+      color: #fff;
+      background: #16845f;
+    }
+
+    .composer {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 10px 14px;
+      border-top: 1px solid var(--line);
+      background: #f7f8fa;
+    }
+
+    .tool {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      flex: none;
+      border-radius: 50%;
+      color: #536270;
+      background: #edf2f5;
+    }
+
+    .tool.active {
+      color: var(--green);
+      background: #dff5ea;
+    }
+
+    .input-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      height: 38px;
+      min-width: 0;
+      border-radius: 8px;
+      border: 1px solid #e0e5ea;
+      background: #fff;
+    }
+
+    .input-wrap input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      padding: 0 10px;
+      font-size: 14px;
+    }
+
+    .voice-hold {
+      display: none;
+      flex: 1;
+      height: 40px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      color: #fff;
+      background: #182533;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .voice-hold.recording { background: #16845f; }
+
+    .composer.voice-mode .input-wrap,
+    .composer.voice-mode .send { display: none; }
+
+    .composer.voice-mode .voice-hold { display: flex; }
+
+    .send {
+      width: 50px;
+      height: 38px;
+      flex: none;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--green);
+      font-weight: 700;
+    }
+
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 80px;
+      z-index: 30;
+      max-width: 280px;
+      padding: 9px 12px;
+      border-radius: 999px;
+      color: #fff;
+      background: rgba(20, 28, 36, .86);
+      font-size: 12px;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 14px);
+      transition: opacity .2s ease, transform .2s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    @media (max-width: 430px) {
+      .stage { padding: 0; }
+      .phone {
+        width: 100vw;
+        height: 100vh;
+        min-height: 640px;
+        border: 0;
+        border-radius: 0;
+      }
+      .phone::before { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="phone">
+      <div class="screen active" id="listScreen">
+        <div class="statusbar"><span>9:41</span><span>••• 5G</span></div>
+        <header class="topbar">
+          <h1>数字分身</h1>
+          <button class="icon-btn" title="新建分身">+</button>
+        </header>
+        <div class="search-wrap">
+          <label class="search">
+            <span>⌕</span>
+            <input id="search" placeholder="搜索分身或聊天记录" />
+          </label>
+        </div>
+        <div class="privacy-strip">适合在移动端处理私人对话；聊天记录与分身记忆保存在本地。</div>
+        <section class="sessions" id="sessions"></section>
+        <nav class="tabbar">
+          <button class="tab active">聊天</button>
+          <button class="tab">分身</button>
+          <button class="tab">记忆</button>
+          <button class="tab">我的</button>
+        </nav>
+      </div>
+
+      <div class="screen" id="chatScreen">
+        <div class="statusbar"><span>9:41</span><span>••• 5G</span></div>
+        <header class="chat-head">
+          <button class="back" id="backBtn">‹</button>
+          <div class="chat-title">
+            <strong id="chatName">妈妈</strong>
+            <span id="chatMeta">已学习人物风格 · 本地记忆开启</span>
+          </div>
+          <div class="call-actions">
+            <button id="voiceCall" title="语音通话">
+              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8c1.5 3 3.6 5.1 6.6 6.6l2.2-2.2c.3-.3.8-.4 1.2-.2 1.3.4 2.7.7 4.1.7.7 0 1.2.5 1.2 1.2v3.6c0 .7-.5 1.2-1.2 1.2C10.5 21.7 2.3 13.5 2.3 3.3c0-.7.5-1.2 1.2-1.2h3.6c.7 0 1.2.5 1.2 1.2 0 1.4.2 2.8.7 4.1.1.4 0 .9-.3 1.2l-2.1 2.2Z" fill="currentColor"/></svg>
+            </button>
+            <button id="videoCall" title="视频通话">
+              <svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.8 6.5h9.6c1 0 1.8.8 1.8 1.8v7.4c0 1-.8 1.8-1.8 1.8H4.8c-1 0-1.8-.8-1.8-1.8V8.3c0-1 .8-1.8 1.8-1.8Zm13.2 3.1 3-1.8v8.4l-3-1.8V9.6Z" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </header>
+        <section class="messages" id="messages"></section>
+        <footer class="composer" id="composer">
+          <button class="tool" id="voiceToggle" title="切换语音/文字输入">♪</button>
+          <div class="input-wrap"><input id="input" placeholder="发消息..." /></div>
+          <button class="voice-hold" id="voiceHold">按住说话</button>
+          <button class="tool" title="表情">☺</button>
+          <button class="send" id="sendBtn">发送</button>
+        </footer>
+      </div>
+      <div class="toast" id="toast"></div>
+    </section>
+  </main>
+
+  <script>
+    const twins = [
+      {
+        id: "mom",
+        name: "妈妈",
+        avatar: "妈",
+        cls: "family",
+        time: "15:02",
+        last: "别紧张，正常说就行。",
+        meta: "短回复 · 关心 · 家常提醒",
+        messages: [
+          ["system", "聊天记录与分身记忆保存在本地"],
+          ["assistant", "吃饭了吗？别老熬夜。"],
+          ["user", "我今天去面试了，有点紧张"],
+          ["assistant", "别紧张，正常说就行。结果什么时候出？"]
+        ],
+        memory: "记住：你最近在准备面试，回复时可以多给一点鼓励。"
+      },
+      {
+        id: "friend",
+        name: "朋友阿K",
+        avatar: "友",
+        cls: "friend",
+        time: "14:44",
+        last: "可以冲，但要留个 Plan B。",
+        meta: "轻松 · 接梗 · 陪聊",
+        messages: [
+          ["system", "聊天记录与分身记忆保存在本地"],
+          ["assistant", "今天怎么这么安静。"],
+          ["user", "我想去冰岛旅行"],
+          ["assistant", "可以啊，听起来很酷，先看看预算和假期吧。"]
+        ],
+        memory: "记住：你对旅行目的地很感兴趣，之后可以继续聊路线和预算。"
+      },
+      {
+        id: "work",
+        name: "产品同事",
+        avatar: "事",
+        cls: "work",
+        time: "昨天",
+        last: "先把目标和风险讲清楚。",
+        meta: "克制 · 建议 · 复盘",
+        messages: [
+          ["system", "聊天记录与分身记忆保存在本地"],
+          ["assistant", "今天的材料我看过了，重点还可以再收一收。"],
+          ["user", "这个方案我有点拿不准"],
+          ["assistant", "先把目标和边界列清楚，再看哪个方案风险更低。"]
+        ],
+        memory: "记住：你希望方案表达更克制，优先讲目标、风险和下一步。"
+      },
+      {
+        id: "new",
+        name: "新建数字分身",
+        avatar: "+",
+        cls: "new",
+        time: "待创建",
+        last: "导入聊天记录后即可生成新分身",
+        meta: "导入数据 · 学习风格",
+        messages: [
+          ["system", "导入聊天记录后，系统会生成风格档案和本地记忆"],
+          ["assistant", "可以从这里创建新的数字分身。"]
+        ],
+        memory: "记住：新分身会先生成风格档案，再进入对话。"
+      }
+    ];
+
+    let activeId = "mom";
+    let voiceMode = false;
+    let memoryShown = false;
+
+    const listScreen = document.getElementById("listScreen");
+    const chatScreen = document.getElementById("chatScreen");
+    const sessions = document.getElementById("sessions");
+    const messages = document.getElementById("messages");
+    const chatName = document.getElementById("chatName");
+    const chatMeta = document.getElementById("chatMeta");
+    const input = document.getElementById("input");
+    const composer = document.getElementById("composer");
+    const voiceToggle = document.getElementById("voiceToggle");
+    const voiceHold = document.getElementById("voiceHold");
+    const toast = document.getElementById("toast");
+    const search = document.getElementById("search");
+
+    function currentTwin() {
+      return twins.find(t => t.id === activeId) || twins[0];
+    }
+
+    function showScreen(name) {
+      listScreen.classList.toggle("active", name === "list");
+      chatScreen.classList.toggle("active", name === "chat");
+    }
+
+    function renderSessions(filter = "") {
+      const q = filter.trim().toLowerCase();
+      sessions.innerHTML = "";
+      twins
+        .filter(t => !q || t.name.toLowerCase().includes(q) || t.last.toLowerCase().includes(q))
+        .forEach(twin => {
+          const item = document.createElement("button");
+          item.className = "session";
+          item.innerHTML = `
+            <div class="avatar ${twin.cls}">${twin.avatar}</div>
+            <div class="session-main">
+              <div class="session-name"><strong>${twin.name}</strong><span class="badge">分身</span></div>
+              <div class="last">${twin.last}</div>
+            </div>
+            <div class="time">${twin.time}</div>
+          `;
+          item.addEventListener("click", () => {
+            activeId = twin.id;
+            memoryShown = false;
+            renderChat();
+            showScreen("chat");
+          });
+          sessions.appendChild(item);
+        });
+    }
+
+    function avatar(twin, mini = false) {
+      const el = document.createElement("div");
+      el.className = `avatar ${twin.cls || "work"} ${mini ? "mini" : ""}`;
+      el.textContent = twin.avatar;
+      return el;
+    }
+
+    function appendMessage(role, text) {
+      const twin = currentTwin();
+      if (role === "system") {
+        const note = document.createElement("div");
+        note.className = "local-note";
+        note.textContent = text;
+        messages.appendChild(note);
+        return;
+      }
+      const row = document.createElement("div");
+      row.className = "msg-row" + (role === "user" ? " mine" : "");
+      row.appendChild(avatar(role === "user" ? { avatar: "我", cls: "work" } : twin, true));
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = text;
+      row.appendChild(bubble);
+      messages.appendChild(row);
+    }
+
+    function renderChat() {
+      const twin = currentTwin();
+      chatName.textContent = twin.name;
+      chatMeta.textContent = `${twin.meta} · 本地记忆开启`;
+      messages.innerHTML = "";
+      twin.messages.forEach(([role, text]) => appendMessage(role, text));
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function replyFor(text) {
+      const twin = currentTwin();
+      if (/面试|紧张|压力|难受/.test(text)) return twin.id === "work" ? "先把要讲的内容列出来，别临场乱。你主要担心哪一块？" : "别紧张，慢慢来。你先把要说的想清楚。";
+      if (/旅行|冰岛|旅游/.test(text)) return twin.id === "mom" ? "想去就提前看好天气和路线，跟谁一起去？" : "可以，先看看预算和假期，别临时才订。";
+      if (/方案|领导|产品|方向/.test(text)) return "可以，先把目标、风险和下一步讲清楚，领导会更容易判断。";
+      return twin.id === "friend" ? "可以啊，这个想法挺有意思。" : "嗯，你自己看着办，别太累。";
+    }
+
+    function appendMemory() {
+      if (memoryShown) return;
+      memoryShown = true;
+      const twin = currentTwin();
+      const card = document.createElement("article");
+      card.className = "memory-card";
+      card.innerHTML = `
+        <header><span>新记忆待确认</span><span>本地保存</span></header>
+        <p>${twin.memory}</p>
+        <div class="memory-actions"><button class="delete">删除</button><button class="confirm">确认</button></div>
+      `;
+      messages.appendChild(card);
+    }
+
+    function sendText() {
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      appendMessage("user", text);
+      messages.scrollTop = messages.scrollHeight;
+      setTimeout(() => {
+        appendMessage("assistant", replyFor(text));
+        if (/面试|旅行|方案|产品|紧张|方向/.test(text)) appendMemory();
+        messages.scrollTop = messages.scrollHeight;
+      }, 360);
+    }
+
+    function setVoiceMode(enabled) {
+      voiceMode = enabled;
+      composer.classList.toggle("voice-mode", voiceMode);
+      voiceToggle.classList.toggle("active", voiceMode);
+      voiceToggle.textContent = voiceMode ? "⌨" : "♪";
+      showToast(voiceMode ? "已切换为语音输入" : "已切换为文字输入");
+    }
+
+    function simulateVoice() {
+      if (!voiceMode) return;
+      voiceHold.classList.add("recording");
+      voiceHold.textContent = "正在聆听...";
+      setTimeout(() => {
+        const text = "我今天有点紧张，想听你说两句";
+        appendMessage("user", `语音：${text}`);
+        setTimeout(() => {
+          appendMessage("assistant", `语音回复：${replyFor(text)}`);
+          appendMemory();
+          voiceHold.classList.remove("recording");
+          voiceHold.textContent = "按住说话";
+          messages.scrollTop = messages.scrollHeight;
+        }, 520);
+      }, 520);
+    }
+
+    function showToast(text) {
+      toast.textContent = text;
+      toast.classList.add("show");
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove("show"), 1700);
+    }
+
+    document.getElementById("backBtn").addEventListener("click", () => showScreen("list"));
+    document.getElementById("sendBtn").addEventListener("click", sendText);
+    input.addEventListener("keydown", event => {
+      if (event.key === "Enter") sendText();
+    });
+    voiceToggle.addEventListener("click", () => setVoiceMode(!voiceMode));
+    voiceHold.addEventListener("click", simulateVoice);
+    voiceHold.addEventListener("pointerdown", () => {
+      if (voiceMode) voiceHold.textContent = "松开发送";
+    });
+    voiceHold.addEventListener("pointerleave", () => {
+      if (voiceMode) voiceHold.textContent = "按住说话";
+    });
+    document.getElementById("voiceCall").addEventListener("click", () => showToast("语音通话入口：后续可接入实时语音流"));
+    document.getElementById("videoCall").addEventListener("click", () => showToast("视频通话入口：后续可接入数字人视频生成"));
+    search.addEventListener("input", () => renderSessions(search.value));
+    messages.addEventListener("click", event => {
+      const card = event.target.closest(".memory-card");
+      if (!card) return;
+      if (event.target.classList.contains("confirm")) {
+        card.querySelector("header span:last-child").textContent = "已保存";
+        showToast("记忆已确认并保存在本地");
+      }
+      if (event.target.classList.contains("delete")) {
+        card.remove();
+        showToast("已删除这条待确认记忆");
+      }
+    });
+
+    renderSessions();
+    renderChat();
+  </script>
+</body>
+</html>

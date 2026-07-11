@@ -25,35 +25,42 @@ function parseArgs(argv) {
 
 function mockReply(userInput, retrieved) {
   const style = retrieved.styles[0]?.target_reply;
-  if (style && userInput.length < 30) return `${style}\n你先别急，慢慢说。`;
-  if (/紧张|焦虑|难受|失眠|想你/.test(userInput)) return "别想太多，先好好休息。有什么事慢慢说。";
-  if (/吃|饭/.test(userInput)) return "吃点东西，别饿着。";
-  return "嗯嗯，我知道了。你慢慢说。";
+  if (style && userInput.length < 30) return `${style}\n\u4f60\u5148\u522b\u6025\uff0c\u6162\u6162\u8bf4\u3002`;
+  if (/\u7d27\u5f20|\u7126\u8651|\u96be\u53d7|\u5931\u7720|\u60f3\u4f60/.test(userInput)) {
+    return "\u522b\u60f3\u592a\u591a\uff0c\u5148\u597d\u597d\u4f11\u606f\u3002\u6709\u4ec0\u4e48\u4e8b\u6162\u6162\u8bf4\u3002";
+  }
+  if (/\u5403|\u996d/.test(userInput)) return "\u5403\u70b9\u4e1c\u897f\uff0c\u522b\u997f\u7740\u3002";
+  return "\u55ef\u55ef\uff0c\u6211\u77e5\u9053\u4e86\u3002\u4f60\u6162\u6162\u8bf4\u3002";
 }
 
 async function main() {
   const args = parseArgs(process.argv);
   const person = args.person || "mom";
   const mock = Boolean(args.mock);
+  const preview = Boolean(args.preview);
   const config = loadConfig();
   const kb = loadKnowledgeBase(person);
-  const rl = readline.createInterface({ input, output });
+  const oneShotMessage = args.message ? String(args.message).trim() : "";
+  const rl = oneShotMessage ? null : readline.createInterface({ input, output });
 
   console.log(`AI Twin chat demo: ${kb.profile.display_name}`);
-  console.log(mock ? "当前为 mock 模式，不调用真实 API。" : `当前模型：${config.provider.model || "(未配置)"}`);
-  console.log("输入 exit 退出。\n");
+  console.log(mock ? "Mode: mock, no real API call." : `Model: ${config.provider.model || "(not configured)"}`);
+  if (!oneShotMessage) console.log("Type exit to quit.\n");
 
-  while (true) {
-    const userInput = (await rl.question("你：")).trim();
-    if (!userInput) continue;
-    if (["exit", "quit", "q"].includes(userInput.toLowerCase())) break;
+  async function handleMessage(userInput) {
+    if (!userInput) return;
 
     const retrieved = retrieveContext(kb, userInput, config.retrieval);
     const messages = buildMessages(kb, userInput, retrieved);
 
-    if (process.env.AI_TWIN_DEBUG === "true") {
+    if (preview || process.env.AI_TWIN_DEBUG === "true") {
       console.log("\n[debug] retrieved memories:", retrieved.memories.map((m) => m.id).join(", ") || "none");
       console.log("[debug] style examples:", retrieved.styles.map((s) => s.id).join(", ") || "none");
+      if (preview) {
+        console.log("\n[prompt preview]");
+        console.log(messages.map((m) => `--- ${m.role} ---\n${m.content}`).join("\n"));
+        console.log("[/prompt preview]\n");
+      }
     }
 
     let reply;
@@ -63,12 +70,24 @@ async function main() {
       reply = await callChatCompletions(config.provider, messages);
     }
 
-    console.log(`妈妈：${reply}\n`);
+    console.log(`Mom: ${reply}\n`);
     const pending = buildPendingMemoryCandidate(userInput, reply);
     if (pending) {
-      console.log(`[待确认记忆] ${pending.candidate_memory}`);
-      console.log("后续产品里这里会让用户选择：记住 / 编辑 / 删除。\n");
+      console.log(`[Pending memory] ${pending.candidate_memory}`);
+      console.log("Later product UI should ask: remember / edit / delete.\n");
     }
+  }
+
+  if (oneShotMessage) {
+    await handleMessage(oneShotMessage);
+    return;
+  }
+
+  while (true) {
+    const userInput = (await rl.question("You: ")).trim();
+    if (!userInput) continue;
+    if (["exit", "quit", "q"].includes(userInput.toLowerCase())) break;
+    await handleMessage(userInput);
   }
 
   rl.close();

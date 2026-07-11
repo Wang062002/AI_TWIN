@@ -48,3 +48,21 @@ src/providers/glm.js
 - 是否有上下文长度和限流说明
 
 API Key 不需要发给我，填在你本地 `.env` 就行。
+
+## SiliconFlow 推荐配置
+
+```env
+AI_TWIN_API_KEY=填你的硅基流动APIKey
+AI_TWIN_BASE_URL=https://api.siliconflow.cn/v1
+AI_TWIN_MODEL=Qwen/Qwen3.5-122B-A10B
+```
+
+当前项目优先验证中文亲密关系对话、风格学习和人物口吻模仿，所以主推 Qwen 的大模型作为第一阶段默认模型。
+
+注意：Qwen3/3.5 在硅基流动上可能默认进入 thinking 模式。当前项目的 `config/default.json` 已默认设置：
+
+```json
+"enableThinking": false
+```
+
+这样更适合短聊天回复，也能避免 token 消耗在 reasoning_content 里导致正式回复为空。

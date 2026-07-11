@@ -11,6 +11,17 @@ export async function callChatCompletions(provider, messages) {
   const url = `${provider.baseUrl.replace(/\/$/, "")}/chat/completions`;
 
   try {
+    const body = {
+      model: provider.model,
+      messages,
+      temperature: provider.temperature ?? 0.75,
+      top_p: provider.topP ?? 0.9,
+      max_tokens: provider.maxTokens ?? 500
+    };
+    if (typeof provider.enableThinking === "boolean") {
+      body.enable_thinking = provider.enableThinking;
+    }
+
     const response = await fetch(url, {
       method: "POST",
       signal: controller.signal,
@@ -18,13 +29,7 @@ export async function callChatCompletions(provider, messages) {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${provider.apiKey}`
       },
-      body: JSON.stringify({
-        model: provider.model,
-        messages,
-        temperature: provider.temperature ?? 0.75,
-        top_p: provider.topP ?? 0.9,
-        max_tokens: provider.maxTokens ?? 500
-      })
+      body: JSON.stringify(body)
     });
 
     const text = await response.text();

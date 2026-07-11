@@ -6,7 +6,8 @@
     "temperature": 0.75,
     "topP": 0.9,
     "maxTokens": 500,
-    "timeoutMs": 60000
+    "timeoutMs": 60000,
+    "enableThinking": false
   },
   "retrieval": {
     "topK": 6,

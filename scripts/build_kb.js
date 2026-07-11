@@ -21,26 +21,42 @@ function parseArgs(argv) {
 }
 
 function isTextMessage(message) {
-  return message.localType === 1 || String(message.type || "").includes("文本");
+  return message.localType === 1 || String(message.type || "").toLowerCase() === "text" || String(message.type || "").includes("\u6587\u672c");
 }
 
 function parseMessages(raw, displayName) {
   const rows = [];
+  const report = {
+    raw_message_count: raw.messages?.length || 0,
+    non_text_skipped: 0,
+    empty_text_skipped: 0,
+    text_kept: 0
+  };
+
   for (const message of raw.messages || []) {
-    if (!isTextMessage(message)) continue;
+    if (!isTextMessage(message)) {
+      report.non_text_skipped += 1;
+      continue;
+    }
     const content = cleanText(message.content);
-    if (!content) continue;
+    if (!content) {
+      report.empty_text_skipped += 1;
+      continue;
+    }
     rows.push({
       id: message.localId,
       role: message.isSend === 1 ? "user" : "twin",
-      speaker: message.isSend === 1 ? "用户" : displayName,
+      speaker: message.isSend === 1 ? "user" : displayName,
       content,
       ts: Number(message.createTime || 0),
       time: message.formattedTime || "",
       source: "wechat"
     });
   }
-  return rows.sort((a, b) => a.ts - b.ts);
+
+  rows.sort((a, b) => a.ts - b.ts);
+  report.text_kept = rows.length;
+  return { messages: rows, report };
 }
 
 function splitConversations(messages, thresholdSeconds = 3600) {
@@ -75,9 +91,18 @@ function mergeSameRole(conversation) {
   return merged;
 }
 
+function qualityLevel(pair) {
+  if (pair.twin.length <= 2) return "too_short";
+  if (/^\d+(\.\d+)?$/.test(pair.twin.trim())) return "number_only";
+  if (pair.twin.length <= 8) return "short_style";
+  if (pair.user.length > 180 || pair.twin.length > 180) return "long";
+  return "normal";
+}
+
 function buildPairs(conversations) {
   const pairs = [];
   const seen = new Set();
+  const duplicated = { count: 0 };
   for (let c = 0; c < conversations.length; c += 1) {
     const merged = mergeSameRole(conversations[c]);
     for (let i = 0; i < merged.length - 1; i += 1) {
@@ -85,10 +110,13 @@ function buildPairs(conversations) {
       const twin = merged[i + 1];
       if (user.role !== "user" || twin.role !== "twin") continue;
       const key = `${user.content}\n---\n${twin.content}`;
-      if (seen.has(key)) continue;
+      if (seen.has(key)) {
+        duplicated.count += 1;
+        continue;
+      }
       seen.add(key);
       const labels = classifyText(`${user.content}\n${twin.content}`);
-      pairs.push({
+      const pair = {
         id: `pair_${String(pairs.length + 1).padStart(5, "0")}`,
         conversation_id: c,
         user: user.content,
@@ -97,10 +125,12 @@ function buildPairs(conversations) {
         month: monthOf(twin.ts || user.ts),
         labels,
         source_message_ids: [...user.ids, ...twin.ids]
-      });
+      };
+      pair.quality = qualityLevel(pair);
+      pairs.push(pair);
     }
   }
-  return pairs;
+  return { pairs, duplicate_pair_count: duplicated.count };
 }
 
 function buildProfile(raw, messages, pairs, person, displayName) {
@@ -109,12 +139,16 @@ function buildProfile(raw, messages, pairs, person, displayName) {
   const openings = new Map();
   const endings = new Map();
   const categoryCounts = new Map();
+  const qualityCounts = new Map();
+
   for (const message of twinMessages) {
     if (message.content.length >= 2) increment(openings, message.content.slice(0, 2));
     if (message.content.length >= 4) increment(openings, message.content.slice(0, 4));
     if (message.content.length >= 2) increment(endings, message.content.slice(-2));
     for (const label of classifyText(message.content)) increment(categoryCounts, label);
   }
+  for (const pair of pairs) increment(qualityCounts, pair.quality);
+
   return {
     person_id: person,
     display_name: displayName,
@@ -136,18 +170,37 @@ function buildProfile(raw, messages, pairs, person, displayName) {
       median_reply_length: percentile(lengths, 0.5),
       p75_reply_length: percentile(lengths, 0.75),
       short_reply_ratio: Number((twinMessages.filter((m) => m.content.length <= 12).length / Math.max(1, twinMessages.length)).toFixed(3)),
-      question_ratio: Number((twinMessages.filter((m) => /[?？吗呢咋怎么]/.test(m.content)).length / Math.max(1, twinMessages.length)).toFixed(3)),
+      question_ratio: Number((twinMessages.filter((m) => /[?\uff1f\u5417\u5462\u600e\u4e48]/.test(m.content)).length / Math.max(1, twinMessages.length)).toFixed(3)),
       linebreak_ratio: Number((twinMessages.filter((m) => m.content.includes("\n")).length / Math.max(1, twinMessages.length)).toFixed(3)),
       top_openings: topEntries(openings, 20),
       top_endings: topEntries(endings, 20)
     },
     dominant_topics: topEntries(categoryCounts, 12),
+    pair_quality: topEntries(qualityCounts, 10),
     generation_guidance: [
-      "优先短句、直接、生活化，不要写成心理咨询师或客服口吻。",
-      "先回应用户当下问题，再用一两句补充关心，避免长篇解释。",
-      "能用聊天记录里的真实表达就不要改写得过度文学化。",
-      "没有证据的事实不要编造，可以用自然口吻承认不确定。"
+      "Reply in natural Chinese.",
+      "Prefer short, direct, everyday chat messages.",
+      "Answer the user's immediate concern first, then add one practical caring sentence if needed.",
+      "Avoid therapist tone, customer-service tone, grand emotional writing, and long explanations.",
+      "Use real chat examples as style references, but do not copy them mechanically.",
+      "Do not invent facts that are not supported by retrieved memory."
     ]
+  };
+}
+
+function buildPersonaCard(profile) {
+  return {
+    person_id: profile.person_id,
+    display_name: profile.display_name,
+    relationship_to_user: "mother",
+    style_summary: {
+      reply_length: "short and direct",
+      emotional_texture: "practical care rather than dramatic sentiment",
+      common_behavior: "answers concrete life questions, reminders, daily care",
+      avoid: ["therapist tone", "customer-service tone", "overly poetic writing", "unsupported facts"]
+    },
+    numeric_style_reference: profile.language_style,
+    generation_guidance: profile.generation_guidance
   };
 }
 
@@ -155,7 +208,7 @@ function buildStyleExamples(pairs, limit = 240) {
   return pairs
     .filter((pair) => {
       if (pair.twin.length < 4 || pair.twin.length > 80 || pair.user.length > 140) return false;
-      if (/^\d+(\.\d+)?$/.test(pair.twin.trim())) return false;
+      if (pair.quality === "number_only") return false;
       if (pair.labels.includes("money") && pair.twin.length <= 8) return false;
       return true;
     })
@@ -175,11 +228,12 @@ function buildRetrievalUnits(pairs, displayName) {
   return pairs.map((pair) => ({
     id: `kb_${pair.id}`,
     layer: "dialogue_pair",
-    text: `用户：${pair.user}\n${displayName}：${pair.twin}`,
+    text: `User: ${pair.user}\n${displayName}: ${pair.twin}`,
     metadata: {
       source_pair_id: pair.id,
       conversation_id: pair.conversation_id,
       labels: pair.labels,
+      quality: pair.quality,
       time: pair.time,
       month: pair.month,
       source: "wechat"
@@ -192,14 +246,14 @@ function buildFactsAndRelations(pairs, profile) {
     {
       id: "fact_communication_short_direct",
       type: "style_fact",
-      content: "目标人物回复整体偏短、直接、生活化，适合用简短句子回应用户。",
+      content: "The target person's replies are usually short, direct, practical, and everyday.",
       confidence: 0.9,
       stats: profile.language_style
     },
     {
       id: "fact_identity_mother",
       type: "identity_fact",
-      content: "该数字分身的关系身份是妈妈，适合围绕生活照顾、提醒、实际建议来回应。",
+      content: "The digital twin represents the user's mother and should focus on practical care, reminders, and daily-life support.",
       confidence: 0.85
     }
   ];
@@ -207,13 +261,13 @@ function buildFactsAndRelations(pairs, profile) {
     {
       id: "rel_daily_care",
       type: "relationship_pattern",
-      content: "该关系更像日常家庭沟通：围绕吃饭、学习/工作、出行、报销、提醒和实际问题展开。",
+      content: "The relationship is mainly daily family communication around meals, study or work, travel, money, reminders, and practical issues.",
       confidence: 0.86
     },
     {
       id: "rel_practical_not_overly_sentimental",
       type: "relationship_pattern",
-      content: "目标人物表达关心时更偏实际解决问题，不宜默认生成过度煽情或长篇抒情回复。",
+      content: "Care is usually expressed through practical problem solving rather than long sentimental replies.",
       confidence: 0.84
     }
   ];
@@ -222,7 +276,7 @@ function buildFactsAndRelations(pairs, profile) {
     facts.push({
       id: `fact_topic_${topic.key}`,
       type: "topic_fact",
-      content: `历史聊天中存在较多 ${topic.key} 相关内容，可作为检索和回复风格参考。`,
+      content: `Historical chats contain frequent ${topic.key} related content.`,
       confidence: 0.72,
       count: topic.count
     });
@@ -248,26 +302,27 @@ function buildTimeline(pairs) {
 }
 
 const SAFETY_RULES = [
-  { id: "boundary_not_real_person", rule: "分身是基于记忆和风格生成的数字陪伴，不应暗示目标人物真实复活或真实在线。" },
-  { id: "no_major_decision_proxy", rule: "不要代替目标人物对现实中的重大决定做承诺、授权或最终判断。" },
-  { id: "no_unsupported_fact", rule: "没有检索证据时，不编造具体日期、地点、承诺、关系事件和目标人物未表达过的关键事实。" },
-  { id: "emotional_safety", rule: "当用户出现强烈悲伤、自伤、失控依赖等信号时，优先稳定情绪并建议联系现实中的可信任的人或专业支持。" },
-  { id: "privacy_first", rule: "默认把聊天记录和分身记忆视为用户本地私密资产，任何上传和同步都需要用户明确确认。" }
+  { id: "boundary_not_real_person", rule: "The twin is generated from memory and style references; it must not imply the real person has literally returned or is online." },
+  { id: "no_major_decision_proxy", rule: "Do not make real-world promises, authorizations, or major decisions on behalf of the target person." },
+  { id: "no_unsupported_fact", rule: "Do not invent unsupported dates, places, promises, relationship events, or facts the target person never expressed." },
+  { id: "emotional_safety", rule: "If the user shows extreme grief, self-harm signals, or loss of control, stabilize emotion and encourage contacting trusted real people or professional support." },
+  { id: "privacy_first", rule: "Treat chat records and twin memories as private local user assets. Uploading or syncing requires explicit user confirmation." }
 ];
 
 function main() {
   const args = parseArgs(process.argv);
   const person = args.person || "mom";
-  const displayName = args["display-name"] || "妈妈";
+  const displayName = args["display-name"] || "\u5988\u5988";
   const input = path.resolve(args.input || `data/raw/${person}/raw.json`);
   const output = path.resolve(args.output || `data/knowledge_bases/${person}`);
   if (!fs.existsSync(input)) throw new Error(`Cannot find input: ${input}`);
 
   const raw = JSON.parse(fs.readFileSync(input, "utf8"));
-  const messages = parseMessages(raw, displayName);
+  const { messages, report: cleaningReport } = parseMessages(raw, displayName);
   const conversations = splitConversations(messages);
-  const pairs = buildPairs(conversations);
+  const { pairs, duplicate_pair_count } = buildPairs(conversations);
   const profile = buildProfile(raw, messages, pairs, person, displayName);
+  const personaCard = buildPersonaCard(profile);
   const styleExamples = buildStyleExamples(pairs);
   const retrievalUnits = buildRetrievalUnits(pairs, displayName);
   const { facts, relations } = buildFactsAndRelations(pairs, profile);
@@ -278,7 +333,7 @@ function main() {
     .map((pair, index) => ({
       id: `pending_${String(index + 1).padStart(4, "0")}`,
       status: "pending_user_confirm",
-      candidate_memory: `从历史对话中发现一条可能需要长期保留的 ${pair.labels.join("/")} 相关记忆。`,
+      candidate_memory: `Historical dialogue may contain a long-term ${pair.labels.join("/")} memory.`,
       source_pair_id: pair.id,
       evidence: { user: pair.user, twin: pair.twin, time: pair.time },
       suggested_actions: ["confirm", "edit", "delete"]
@@ -293,6 +348,7 @@ function main() {
     source_file: path.relative(process.cwd(), input),
     files: {
       profile: "profile.json",
+      persona_card: "persona_card.json",
       retrieval_units: "retrieval_units.jsonl",
       style_examples: "style_examples.jsonl",
       facts: "memories/facts.jsonl",
@@ -300,10 +356,12 @@ function main() {
       timeline: "memories/timeline.jsonl",
       pending_memory_candidates: "memories/pending_memory_candidates.jsonl",
       safety_rules: "safety_rules.json",
+      cleaning_report: "cleaning_report.json",
       build_report: "build_report.json"
     }
   });
   writeJson(path.join(output, "profile.json"), profile);
+  writeJson(path.join(output, "persona_card.json"), personaCard);
   writeJsonl(path.join(output, "retrieval_units.jsonl"), retrievalUnits);
   writeJsonl(path.join(output, "style_examples.jsonl"), styleExamples);
   writeJsonl(path.join(output, "memories", "facts.jsonl"), facts);
@@ -311,7 +369,13 @@ function main() {
   writeJsonl(path.join(output, "memories", "timeline.jsonl"), timeline);
   writeJsonl(path.join(output, "memories", "pending_memory_candidates.jsonl"), pending);
   writeJson(path.join(output, "safety_rules.json"), SAFETY_RULES);
-  const report = {
+  writeJson(path.join(output, "cleaning_report.json"), {
+    ...cleaningReport,
+    conversation_count: conversations.length,
+    duplicate_pair_count,
+    quality_distribution: profile.pair_quality
+  });
+  const buildReport = {
     input: path.relative(process.cwd(), input),
     output_dir: path.relative(process.cwd(), output),
     raw_message_count: raw.messages?.length || 0,
@@ -325,8 +389,8 @@ function main() {
     timeline_month_count: timeline.length,
     pending_memory_candidate_count: pending.length
   };
-  writeJson(path.join(output, "build_report.json"), report);
-  console.log(JSON.stringify(report, null, 2));
+  writeJson(path.join(output, "build_report.json"), buildReport);
+  console.log(JSON.stringify(buildReport, null, 2));
 }
 
 main();

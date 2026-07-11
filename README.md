@@ -49,9 +49,21 @@ npm run chat:mom:mock
 3. 填写 `.env` 后调用真实 API：
 
 ```powershell
-Copy-Item .env.example .env
+Copy-Item .env.siliconflow.example .env
 # 编辑 .env 后执行
 npm run chat:mom
+```
+
+也可以单次测试一条消息：
+
+```powershell
+node scripts/chat_demo.js --person mom --message "我今天去面试了，有点紧张"
+```
+
+如果想先看检索结果和 prompt，不调用真实 API：
+
+```powershell
+node scripts/chat_demo.js --person mom --mock --preview --message "我今天去面试了，有点紧张"
 ```
 
 ## 当前技术闭环

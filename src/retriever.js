@@ -1,4 +1,4 @@
-import { classifyText, tokenize } from "./text.js";
+import { CATEGORY_TERMS, classifyText, tokenize } from "./text.js";
 
 function scoreText(queryTokens, text, labels, queryLabels) {
   const targetTokens = tokenize(text);
@@ -7,8 +7,13 @@ function scoreText(queryTokens, text, labels, queryLabels) {
     if (targetTokens.has(token)) score += token.length > 1 ? 3 : 1;
   }
   for (const label of queryLabels) {
-    if (labels?.includes(label)) score += 4;
+    if (label !== "general" && labels?.includes(label)) score += 18;
+    for (const term of CATEGORY_TERMS[label] || []) {
+      if (term.length > 1 && text.includes(term)) score += 8;
+    }
   }
+  const firstPhrase = [...queryTokens].find((t) => t.length > 1);
+  if (firstPhrase && text.includes(firstPhrase)) score += 3;
   return score;
 }
 
@@ -37,6 +42,7 @@ export function retrieveContext(kb, userInput, options = {}) {
       ...item,
       score: scoreText(queryTokens, `${item.user}\n${item.target_reply}`, item.labels, queryLabels)
     }))
+    .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, styleK);
 

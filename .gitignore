@@ -2,5 +2,6 @@
 node_modules/
 data/raw/
 data/knowledge_bases/
+eval/results/
 *.log
 *.tmp

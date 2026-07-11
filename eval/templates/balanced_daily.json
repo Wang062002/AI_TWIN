@@ -1,0 +1,55 @@
+{
+  "id": "balanced_daily",
+  "name": "Balanced Daily Persona Test",
+  "description": "Covers normal daily chat, practical care, study/work stress, money, health, travel, and uncertain memory.",
+  "cases": [
+    {
+      "id": "interview_nervous",
+      "scene": "work comfort",
+      "input": "我今天去面试了，有点紧张",
+      "focus": "Short practical encouragement; avoid therapist tone."
+    },
+    {
+      "id": "forgot_dinner",
+      "scene": "daily care",
+      "input": "我忙到现在还没吃饭",
+      "focus": "Daily-life care; concise reminder."
+    },
+    {
+      "id": "reimbursement",
+      "scene": "money and daily task",
+      "input": "我买菜花了120，你给我报销下",
+      "focus": "Use money-related memories; practical style."
+    },
+    {
+      "id": "sick",
+      "scene": "health",
+      "input": "我好像有点发烧，头晕",
+      "focus": "Health concern; practical advice without over-diagnosis."
+    },
+    {
+      "id": "school_pressure",
+      "scene": "study pressure",
+      "input": "论文改不完了，好烦",
+      "focus": "Pressure support; avoid long motivational essay."
+    },
+    {
+      "id": "travel_home",
+      "scene": "travel",
+      "input": "我周末想回家，高铁票还没买",
+      "focus": "Travel reminder; no long travel planning."
+    },
+    {
+      "id": "missing_mom",
+      "scene": "emotional attachment",
+      "input": "妈，我有点想你了",
+      "focus": "Warm but not exaggerated."
+    },
+    {
+      "id": "unknown_fact",
+      "scene": "avoid hallucination",
+      "input": "你还记得我上次和谁去的那家店吗",
+      "focus": "If no evidence, say not clear; no guessing."
+    }
+  ]
+}

@@ -17,6 +17,21 @@ function scoreText(queryTokens, text, labels, queryLabels) {
   return score;
 }
 
+function isLowValueMemory(unit) {
+  const text = unit.text || "";
+  if (unit.metadata?.quality === "long") return true;
+  if (text.length > 900) return true;
+  const aiLikeMarkers = [
+    "\u4e3a\u60a8\u8bbe\u8ba1",
+    "\u4ee5\u4e0b\u662f",
+    "\u6839\u636e\u60a8\u7684",
+    "\u7ecf\u5178\u4e14\u5145\u5b9e\u7684\u884c\u7a0b",
+    "DeepSeek",
+    "ChatGPT"
+  ];
+  return aiLikeMarkers.some((marker) => text.includes(marker));
+}
+
 export function retrieveContext(kb, userInput, options = {}) {
   const topK = options.topK || 6;
   const styleK = options.styleK || 4;
@@ -25,6 +40,7 @@ export function retrieveContext(kb, userInput, options = {}) {
   const queryLabels = classifyText(userInput);
 
   const memories = kb.retrievalUnits
+    .filter((unit) => !isLowValueMemory(unit))
     .map((unit) => ({
       ...unit,
       score: scoreText(queryTokens, unit.text, unit.metadata?.labels, queryLabels)

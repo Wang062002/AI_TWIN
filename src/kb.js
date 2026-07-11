@@ -29,6 +29,7 @@ export function loadKnowledgeBase(person, root = "data/knowledge_bases") {
     dir,
     manifest: readJson(path.join(dir, "manifest.json")),
     profile: readJson(path.join(dir, "profile.json")),
+    personaCard: readJson(path.join(dir, "persona_card.json")),
     safetyRules: readJson(path.join(dir, "safety_rules.json")),
     retrievalUnits: readJsonl(path.join(dir, "retrieval_units.jsonl")),
     styleExamples: readJsonl(path.join(dir, "style_examples.jsonl")),

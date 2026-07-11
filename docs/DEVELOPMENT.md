@@ -1,14 +1,30 @@
 # Development Workflow
 
-这个项目按长期维护方式开发：代码进 GitHub，隐私数据留在本地。
+This project is maintained as a long-running product codebase. Code goes to GitHub; private user data stays local.
 
-## 分支建议
+## Permanent Product Principle
 
-- `main`: 稳定主分支，只合入已经跑通过的功能。
-- `feature/*`: 新功能分支，例如 `feature/api-chat-demo`。
-- `fix/*`: 修复分支，例如 `fix/retrieval-ranking`。
+The knowledge-base and cleaning pipeline must be identity-agnostic.
 
-## 提交前检查
+Users may create twins for many different target identities: mother, father, relatives, spouse, current partner, ex-boyfriend, ex-girlfriend, close friend, teacher, colleague, or another important person.
+
+Therefore:
+
+- Do not hard-code "mother" behavior into generic cleaning logic.
+- Store `relationship_to_user` as configurable metadata.
+- Infer style from each target person's real chat data.
+- Use relationship identity only as context, not as a fixed reply template.
+- Filtering rules should remove low-value content regardless of identity.
+- Prompt rules must adapt to the configured relationship and retrieved evidence.
+
+## Branches
+
+- `main`: stable text-interaction product line.
+- `research/*`: exploratory work, such as streaming voice or video interaction.
+- `feature/*`: product features.
+- `fix/*`: targeted fixes.
+
+## Checks Before Commit
 
 ```powershell
 npm run check
@@ -16,43 +32,49 @@ npm run build:kb:mom
 npm run chat:mom:mock
 ```
 
-## 隐私规则
+For API behavior checks:
 
-不要提交以下内容：
+```powershell
+npm run eval:mom
+```
+
+## Privacy Rules
+
+Never commit:
 
 - `.env`
 - `data/raw/`
 - `data/knowledge_bases/`
-- API key
-- 用户真实聊天记录
-- 可还原用户身份的导出文件
+- API keys
+- real user chat exports
+- files that can identify a user or target person
 
-如果后续需要示例数据，应该单独制作脱敏样例，例如：
+If sample data is needed, create a separate desensitized sample under:
 
 ```text
-data/samples/mom_sample.json
+data/samples/
 ```
 
-## Issue 管理建议
+## Suggested GitHub Labels
 
-建议用 GitHub issues 拆任务：
+- `product`: product and business scenarios
+- `frontend`: mobile UI prototype
+- `kb`: knowledge-base construction
+- `cleaning`: data cleaning and filtering
+- `retrieval`: retrieval and ranking
+- `prompt`: persona and style prompting
+- `api`: model API integration
+- `safety`: emotional safety and boundaries
+- `privacy`: local data and encryption
 
-- `product`: 产品和业务场景
-- `frontend`: 移动端 UI 原型
-- `kb`: 知识库构建
-- `retrieval`: 检索和排序
-- `prompt`: 人物风格 prompt
-- `api`: 模型 API 接入
-- `safety`: 情绪安全和边界策略
-- `privacy`: 本地数据和加密
-
-## 当前技术路线
+## Current Technical Route
 
 ```text
-本地聊天记录
--> 知识库构建
--> 本地检索
--> few-shot / 人物画像 / 安全边界 prompt
--> API 模型生成
--> 待确认记忆
+local chat records
+-> identity-agnostic cleaning
+-> persona profile and local knowledge base
+-> retrieval
+-> few-shot / persona / safety prompt
+-> API model generation
+-> pending memory confirmation
 ```

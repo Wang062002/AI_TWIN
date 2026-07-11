@@ -20,6 +20,12 @@ function parseArgs(argv) {
   return args;
 }
 
+function decodeEscapedUnicode(value) {
+  return String(value || "").replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => {
+    return String.fromCharCode(Number.parseInt(hex, 16));
+  });
+}
+
 function isTextMessage(message) {
   return message.localType === 1 || String(message.type || "").toLowerCase() === "text" || String(message.type || "").includes("\u6587\u672c");
 }
@@ -94,9 +100,23 @@ function mergeSameRole(conversation) {
 function qualityLevel(pair) {
   if (pair.twin.length <= 2) return "too_short";
   if (/^\d+(\.\d+)?$/.test(pair.twin.trim())) return "number_only";
+  if (isAiLikeOrPlanningText(pair.twin)) return "ai_like_long";
   if (pair.twin.length <= 8) return "short_style";
   if (pair.user.length > 180 || pair.twin.length > 180) return "long";
   return "normal";
+}
+
+function isAiLikeOrPlanningText(text) {
+  const markers = [
+    "\u4e3a\u60a8\u8bbe\u8ba1",
+    "\u4ee5\u4e0b\u662f",
+    "\u6839\u636e\u60a8\u7684",
+    "\u7ecf\u5178\u4e14\u5145\u5b9e\u7684\u884c\u7a0b",
+    "\u8003\u8651\u5230\u60a8\u7684\u9884\u7b97",
+    "DeepSeek",
+    "ChatGPT"
+  ];
+  return text.length > 260 && markers.some((marker) => text.includes(marker));
 }
 
 function buildPairs(conversations) {
@@ -133,7 +153,7 @@ function buildPairs(conversations) {
   return { pairs, duplicate_pair_count: duplicated.count };
 }
 
-function buildProfile(raw, messages, pairs, person, displayName) {
+function buildProfile(raw, messages, pairs, person, displayName, relationship) {
   const twinMessages = messages.filter((m) => m.role === "twin");
   const lengths = twinMessages.map((m) => m.content.length);
   const openings = new Map();
@@ -152,6 +172,7 @@ function buildProfile(raw, messages, pairs, person, displayName) {
   return {
     person_id: person,
     display_name: displayName,
+    relationship_to_user: relationship,
     source: {
       type: "wechat_export",
       session_remark: raw.session?.remark || "",
@@ -180,6 +201,7 @@ function buildProfile(raw, messages, pairs, person, displayName) {
     generation_guidance: [
       "Reply in natural Chinese.",
       "Prefer short, direct, everyday chat messages.",
+      "Follow the configured relationship identity; do not assume every target person is a mother.",
       "Answer the user's immediate concern first, then add one practical caring sentence if needed.",
       "Avoid therapist tone, customer-service tone, grand emotional writing, and long explanations.",
       "Use real chat examples as style references, but do not copy them mechanically.",
@@ -192,11 +214,11 @@ function buildPersonaCard(profile) {
   return {
     person_id: profile.person_id,
     display_name: profile.display_name,
-    relationship_to_user: "mother",
+    relationship_to_user: profile.relationship_to_user,
     style_summary: {
       reply_length: "short and direct",
-      emotional_texture: "practical care rather than dramatic sentiment",
-      common_behavior: "answers concrete life questions, reminders, daily care",
+      emotional_texture: "learned from this target person's real chat data",
+      common_behavior: "use the target person's own repeated patterns instead of a fixed family-role template",
       avoid: ["therapist tone", "customer-service tone", "overly poetic writing", "unsupported facts"]
     },
     numeric_style_reference: profile.language_style,
@@ -208,7 +230,7 @@ function buildStyleExamples(pairs, limit = 240) {
   return pairs
     .filter((pair) => {
       if (pair.twin.length < 4 || pair.twin.length > 80 || pair.user.length > 140) return false;
-      if (pair.quality === "number_only") return false;
+      if (["number_only", "ai_like_long", "long"].includes(pair.quality)) return false;
       if (pair.labels.includes("money") && pair.twin.length <= 8) return false;
       return true;
     })
@@ -225,7 +247,9 @@ function buildStyleExamples(pairs, limit = 240) {
 }
 
 function buildRetrievalUnits(pairs, displayName) {
-  return pairs.map((pair) => ({
+  return pairs
+    .filter((pair) => !["ai_like_long", "long"].includes(pair.quality))
+    .map((pair) => ({
     id: `kb_${pair.id}`,
     layer: "dialogue_pair",
     text: `User: ${pair.user}\n${displayName}: ${pair.twin}`,
@@ -251,9 +275,9 @@ function buildFactsAndRelations(pairs, profile) {
       stats: profile.language_style
     },
     {
-      id: "fact_identity_mother",
+      id: "fact_identity_relationship",
       type: "identity_fact",
-      content: "The digital twin represents the user's mother and should focus on practical care, reminders, and daily-life support.",
+      content: `The digital twin represents a target person whose configured relationship to the user is: ${profile.relationship_to_user}. The generation strategy must adapt to this identity instead of using a fixed mother template.`,
       confidence: 0.85
     }
   ];
@@ -261,7 +285,7 @@ function buildFactsAndRelations(pairs, profile) {
     {
       id: "rel_daily_care",
       type: "relationship_pattern",
-      content: "The relationship is mainly daily family communication around meals, study or work, travel, money, reminders, and practical issues.",
+      content: "The relationship pattern must be inferred from this person's chat data. Frequent topics and style samples should drive the reply more than any hard-coded identity assumption.",
       confidence: 0.86
     },
     {
@@ -312,7 +336,8 @@ const SAFETY_RULES = [
 function main() {
   const args = parseArgs(process.argv);
   const person = args.person || "mom";
-  const displayName = args["display-name"] || "\u5988\u5988";
+  const displayName = decodeEscapedUnicode(args["display-name"] || "\u5988\u5988");
+  const relationship = args.relationship || "unspecified";
   const input = path.resolve(args.input || `data/raw/${person}/raw.json`);
   const output = path.resolve(args.output || `data/knowledge_bases/${person}`);
   if (!fs.existsSync(input)) throw new Error(`Cannot find input: ${input}`);
@@ -321,7 +346,7 @@ function main() {
   const { messages, report: cleaningReport } = parseMessages(raw, displayName);
   const conversations = splitConversations(messages);
   const { pairs, duplicate_pair_count } = buildPairs(conversations);
-  const profile = buildProfile(raw, messages, pairs, person, displayName);
+  const profile = buildProfile(raw, messages, pairs, person, displayName, relationship);
   const personaCard = buildPersonaCard(profile);
   const styleExamples = buildStyleExamples(pairs);
   const retrievalUnits = buildRetrievalUnits(pairs, displayName);

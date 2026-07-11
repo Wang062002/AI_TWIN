@@ -122,7 +122,57 @@ function renderMarkdown(summary, comparisonLines) {
   lines.push("");
   lines.push(...comparisonLines);
   lines.push("");
-  lines.push("## Results");
+  lines.push("## Test Results");
+  lines.push("");
+
+  const byTemplate = new Map();
+  for (const item of summary.results) {
+    if (!byTemplate.has(item.template_id)) byTemplate.set(item.template_id, []);
+    byTemplate.get(item.template_id).push(item);
+  }
+
+  for (const template of summary.templates) {
+    const items = byTemplate.get(template.id) || [];
+    lines.push(`## ${template.name}`);
+    lines.push("");
+    lines.push(`> ${template.description}`);
+    lines.push("");
+    for (const item of items) {
+      lines.push(`### ${item.scene} / ${item.id}`);
+      lines.push("");
+      lines.push(`**Focus:** ${item.focus}`);
+      lines.push("");
+      lines.push(`**用户输入：** ${item.input}`);
+      lines.push("");
+      lines.push("**模型回复：**");
+      lines.push("");
+      lines.push("```text");
+      lines.push(item.reply);
+      lines.push("```");
+      lines.push("");
+      lines.push(`**Quick Metrics:** chars=${item.metrics.chars}, lines=${item.metrics.lines}, says_unclear=${item.metrics.says_unclear}, possible_guess=${item.metrics.possible_guess}, therapist_tone=${item.metrics.therapist_tone}`);
+      lines.push("");
+      lines.push("<details>");
+      lines.push("<summary>检索参考与风格样本</summary>");
+      lines.push("");
+      lines.push("Retrieved memories:");
+      for (const memory of item.retrieved_memories) {
+        lines.push(`- ${memory.id} | ${memory.labels.join(",") || "none"} | ${memory.text}`);
+      }
+      lines.push("");
+      lines.push("Style examples:");
+      for (const style of item.style_examples) {
+        lines.push(`- ${style.id} | User: ${style.user} | Target: ${style.reply}`);
+      }
+      lines.push("");
+      lines.push("</details>");
+      lines.push("");
+    }
+  }
+
+  lines.push("## Raw Case Details");
+  lines.push("");
+  lines.push("The section below keeps stable case keys for version comparison.");
   lines.push("");
   for (const item of summary.results) {
     lines.push(`### ${item.case_key}`);

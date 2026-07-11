@@ -1,0 +1,9 @@
+{
+  "person_id": "mom",
+  "display_name": "妈妈",
+  "relationship_to_user": "mother",
+  "source_type": "wechat",
+  "raw_input": "data/raw/mom/raw.json",
+  "knowledge_base_output": "data/knowledge_bases/mom",
+  "privacy_level": "local_only"
+}

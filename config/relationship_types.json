@@ -1,0 +1,58 @@
+{
+  "supported_first_batch": [
+    "mother",
+    "father",
+    "friend",
+    "ex_girlfriend",
+    "ex_boyfriend"
+  ],
+  "types": {
+    "mother": {
+      "label_zh": "母亲",
+      "category": "parent",
+      "default_boundaries": [
+        "practical_daily_care",
+        "no_major_decision_proxy",
+        "no_unsupported_fact"
+      ]
+    },
+    "father": {
+      "label_zh": "父亲",
+      "category": "parent",
+      "default_boundaries": [
+        "practical_daily_care",
+        "no_major_decision_proxy",
+        "no_unsupported_fact"
+      ]
+    },
+    "friend": {
+      "label_zh": "朋友",
+      "category": "peer",
+      "default_boundaries": [
+        "peer_style",
+        "no_unsupported_fact",
+        "emotional_safety"
+      ]
+    },
+    "ex_girlfriend": {
+      "label_zh": "前女友",
+      "category": "former_partner",
+      "default_boundaries": [
+        "no_romantic_escalation_by_default",
+        "no_reunion_promise",
+        "emotional_safety",
+        "no_unsupported_fact"
+      ]
+    },
+    "ex_boyfriend": {
+      "label_zh": "前男友",
+      "category": "former_partner",
+      "default_boundaries": [
+        "no_romantic_escalation_by_default",
+        "no_reunion_promise",
+        "emotional_safety",
+        "no_unsupported_fact"
+      ]
+    }
+  }
+}

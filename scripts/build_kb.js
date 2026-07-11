@@ -26,6 +26,22 @@ function decodeEscapedUnicode(value) {
   });
 }
 
+function loadRelationshipTypes() {
+  const file = path.resolve("config/relationship_types.json");
+  if (!fs.existsSync(file)) return null;
+  return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+function validateRelationship(relationship) {
+  const config = loadRelationshipTypes();
+  if (!config || relationship === "unspecified") return null;
+  const supported = new Set(config.supported_first_batch || []);
+  if (!supported.has(relationship)) {
+    return `Relationship "${relationship}" is not in first-batch supported types: ${[...supported].join(", ")}`;
+  }
+  return null;
+}
+
 function isTextMessage(message) {
   return message.localType === 1 || String(message.type || "").toLowerCase() === "text" || String(message.type || "").includes("\u6587\u672c");
 }
@@ -338,6 +354,8 @@ function main() {
   const person = args.person || "mom";
   const displayName = decodeEscapedUnicode(args["display-name"] || "\u5988\u5988");
   const relationship = args.relationship || "unspecified";
+  const relationshipWarning = validateRelationship(relationship);
+  if (relationshipWarning) console.warn(`[relationship warning] ${relationshipWarning}`);
   const input = path.resolve(args.input || `data/raw/${person}/raw.json`);
   const output = path.resolve(args.output || `data/knowledge_bases/${person}`);
   if (!fs.existsSync(input)) throw new Error(`Cannot find input: ${input}`);

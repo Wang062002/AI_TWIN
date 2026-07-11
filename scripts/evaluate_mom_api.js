@@ -58,18 +58,16 @@ function basicMetrics(reply) {
   return {
     chars: [...text].length,
     lines: text.split(/\r?\n/).filter((line) => line.trim()).length,
-    has_question: /[?？吗呢咋怎么]/.test(text),
-    says_unclear: /不记得|不太记得|模糊|不清楚|不确定/.test(text),
-    possible_guess: /是不是|应该是|可能是|跟同学|那家/.test(text),
+    has_question: /[?\uFF1F\u5417\u5462\u600e\u4e48]/.test(text),
+    says_unclear: /\u4e0d\u8bb0\u5f97|\u4e0d\u592a\u8bb0\u5f97|\u6a21\u7cca|\u4e0d\u6e05\u695a|\u4e0d\u786e\u5b9a/.test(text),
+    possible_guess: /\u662f\u4e0d\u662f|\u5e94\u8be5\u662f|\u53ef\u80fd\u662f|\u8ddf\u540c\u5b66|\u90a3\u5bb6/.test(text),
     long_reply: [...text].length > 80,
-    therapist_tone: /情绪|接纳|感受|支持你|你可以尝试|深呼吸/.test(text)
+    therapist_tone: /\u60c5\u7eea|\u63a5\u7eb3|\u611f\u53d7|\u652f\u6301\u4f60|\u4f60\u53ef\u4ee5\u5c1d\u8bd5|\u6df1\u547c\u5438/.test(text)
   };
 }
 
 function compareSummaries(previous, current) {
-  if (!previous) {
-    return ["No previous version found. This is the baseline report."];
-  }
+  if (!previous) return ["No previous version found. This is the baseline report."];
   const lines = [];
   const prevMap = new Map(previous.results.map((item) => [item.case_key, item]));
   for (const item of current.results) {
@@ -79,25 +77,28 @@ function compareSummaries(previous, current) {
       continue;
     }
     const diffs = [];
-    if (prev.metrics.chars !== item.metrics.chars) {
-      diffs.push(`length ${prev.metrics.chars}->${item.metrics.chars}`);
-    }
-    if (prev.metrics.says_unclear !== item.metrics.says_unclear) {
-      diffs.push(`unclear ${prev.metrics.says_unclear}->${item.metrics.says_unclear}`);
-    }
-    if (prev.metrics.possible_guess !== item.metrics.possible_guess) {
-      diffs.push(`possible_guess ${prev.metrics.possible_guess}->${item.metrics.possible_guess}`);
-    }
-    if (prev.metrics.therapist_tone !== item.metrics.therapist_tone) {
-      diffs.push(`therapist_tone ${prev.metrics.therapist_tone}->${item.metrics.therapist_tone}`);
-    }
-    if (prev.reply !== item.reply) {
-      diffs.push("reply changed");
-    }
+    if (prev.metrics.chars !== item.metrics.chars) diffs.push(`length ${prev.metrics.chars}->${item.metrics.chars}`);
+    if (prev.metrics.says_unclear !== item.metrics.says_unclear) diffs.push(`unclear ${prev.metrics.says_unclear}->${item.metrics.says_unclear}`);
+    if (prev.metrics.possible_guess !== item.metrics.possible_guess) diffs.push(`possible_guess ${prev.metrics.possible_guess}->${item.metrics.possible_guess}`);
+    if (prev.metrics.therapist_tone !== item.metrics.therapist_tone) diffs.push(`therapist_tone ${prev.metrics.therapist_tone}->${item.metrics.therapist_tone}`);
+    if (prev.reply !== item.reply) diffs.push("reply changed");
     if (diffs.length) lines.push(`- ${item.case_key}: ${diffs.join("; ")}`);
   }
-  if (!lines.length) return ["No measurable differences from previous version."];
-  return lines;
+  return lines.length ? lines : ["No measurable differences from previous version."];
+}
+
+function pushManualRatingBlock(lines) {
+  lines.push("**人工评分：**");
+  lines.push("");
+  lines.push("| 维度 | 分数/结果 | 备注 |");
+  lines.push("| --- | --- | --- |");
+  lines.push("| 相似度 1-5 |  |  |");
+  lines.push("| 自然度 1-5 |  |  |");
+  lines.push("| 情感合适度 1-5 |  |  |");
+  lines.push("| 事实可靠性 1-5 |  |  |");
+  lines.push("| AI 感 1-5 |  |  |");
+  lines.push("| 是否需要调整 |  |  |");
+  lines.push("");
 }
 
 function renderMarkdown(summary, comparisonLines) {
@@ -150,6 +151,7 @@ function renderMarkdown(summary, comparisonLines) {
       lines.push(item.reply);
       lines.push("```");
       lines.push("");
+      pushManualRatingBlock(lines);
       lines.push(`**Quick Metrics:** chars=${item.metrics.chars}, lines=${item.metrics.lines}, says_unclear=${item.metrics.says_unclear}, possible_guess=${item.metrics.possible_guess}, therapist_tone=${item.metrics.therapist_tone}`);
       lines.push("");
       lines.push("<details>");
@@ -182,16 +184,6 @@ function renderMarkdown(summary, comparisonLines) {
     lines.push(`- Focus: ${item.focus}`);
     lines.push(`- Input: ${item.input}`);
     lines.push(`- Metrics: chars=${item.metrics.chars}, lines=${item.metrics.lines}, says_unclear=${item.metrics.says_unclear}, possible_guess=${item.metrics.possible_guess}, therapist_tone=${item.metrics.therapist_tone}`);
-    lines.push("");
-    lines.push("Retrieved memories:");
-    for (const memory of item.retrieved_memories) {
-      lines.push(`- ${memory.id} | ${memory.labels.join(",") || "none"} | ${memory.text}`);
-    }
-    lines.push("");
-    lines.push("Style examples:");
-    for (const style of item.style_examples) {
-      lines.push(`- ${style.id} | User: ${style.user} | Target: ${style.reply}`);
-    }
     lines.push("");
     lines.push("Reply:");
     lines.push("");
@@ -240,6 +232,7 @@ async function main() {
       short_reply_ratio: kb.profile.language_style?.short_reply_ratio,
       question_ratio: kb.profile.language_style?.question_ratio
     },
+    manual_rating_schema: ["similarity_1_5", "naturalness_1_5", "emotional_fit_1_5", "factual_reliability_1_5", "ai_feel_1_5", "needs_adjustment"],
     results: []
   };
 

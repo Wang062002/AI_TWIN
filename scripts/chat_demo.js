@@ -1,7 +1,8 @@
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { loadConfig } from "../src/config.js";
-import { loadKnowledgeBase } from "../src/kb.js";
+import { loadKnowledgeBaseFromDir } from "../src/kb.js";
+import { loadPersonConfig } from "../src/person_config.js";
 import { buildMessages, buildPendingMemoryCandidate } from "../src/prompt.js";
 import { callChatCompletions } from "../src/provider.js";
 import { retrieveContext } from "../src/retriever.js";
@@ -39,7 +40,8 @@ async function main() {
   const mock = Boolean(args.mock);
   const preview = Boolean(args.preview);
   const config = loadConfig();
-  const kb = loadKnowledgeBase(person);
+  const personConfig = loadPersonConfig(person, { config: args.config });
+  const kb = loadKnowledgeBaseFromDir(personConfig.knowledge_base_output);
   const oneShotMessage = args.message ? String(args.message).trim() : "";
   const rl = oneShotMessage ? null : readline.createInterface({ input, output });
 

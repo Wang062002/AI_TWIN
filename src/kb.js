@@ -25,6 +25,11 @@ export function writeJsonl(file, rows) {
 
 export function loadKnowledgeBase(person, root = "data/knowledge_bases") {
   const dir = path.resolve(root, person);
+  return loadKnowledgeBaseFromDir(dir);
+}
+
+export function loadKnowledgeBaseFromDir(dirPath) {
+  const dir = path.resolve(dirPath);
   return {
     dir,
     manifest: readJson(path.join(dir, "manifest.json")),

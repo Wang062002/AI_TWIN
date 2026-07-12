@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:kb:mom": "node scripts/build_kb.js --person mom --display-name \\u5988\\u5988 --relationship mother --input data/raw/mom/raw.json --output data/knowledge_bases/mom",
+    "build:kb:mom": "node scripts/build_kb.js --person mom",
     "chat:mom": "node scripts/chat_demo.js --person mom",
     "chat:mom:mock": "node scripts/chat_demo.js --person mom --mock",
-    "check": "node --check scripts/build_kb.js && node --check scripts/chat_demo.js && node --check scripts/evaluate_mom_api.js && node --check src/config.js && node --check src/kb.js && node --check src/prompt.js && node --check src/provider.js && node --check src/retriever.js && node --check src/text.js",
+    "check": "node --check scripts/build_kb.js && node --check scripts/chat_demo.js && node --check scripts/evaluate_mom_api.js && node --check src/config.js && node --check src/kb.js && node --check src/person_config.js && node --check src/prompt.js && node --check src/provider.js && node --check src/retriever.js && node --check src/text.js",
     "eval:mom": "node scripts/evaluate_mom_api.js"
   },
   "engines": {

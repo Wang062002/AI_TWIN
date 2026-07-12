@@ -40,6 +40,14 @@ AI_TWIN_MODEL
 npm run build:kb:mom
 ```
 
+该命令会读取：
+
+```text
+config/people/mom.json
+```
+
+新增分身时，复制 `config/person.example.json` 到 `config/people/{person_id}.json`，修改 `display_name`、`relationship_to_user`、`raw_input` 和 `knowledge_base_output` 即可。
+
 2. 先不用 API，跑 mock 检查检索和 prompt：
 
 ```powershell

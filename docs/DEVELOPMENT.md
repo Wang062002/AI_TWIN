@@ -38,6 +38,36 @@ For API behavior checks:
 npm run eval:mom
 ```
 
+## Person Configs
+
+Each digital twin should have a config file under:
+
+```text
+config/people/{person_id}.json
+```
+
+Use this template:
+
+```text
+config/person.example.json
+```
+
+Required fields:
+
+- `person_id`
+- `display_name`
+- `relationship_to_user`
+- `source_type`
+- `raw_input`
+- `knowledge_base_output`
+- `privacy_level`
+
+First-batch relationship types are defined in:
+
+```text
+config/relationship_types.json
+```
+
 ## Privacy Rules
 
 Never commit:

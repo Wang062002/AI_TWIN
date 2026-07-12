@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { loadConfig } from "../src/config.js";
-import { loadKnowledgeBase } from "../src/kb.js";
+import { loadKnowledgeBaseFromDir } from "../src/kb.js";
+import { loadPersonConfig } from "../src/person_config.js";
 import { buildMessages } from "../src/prompt.js";
 import { callChatCompletions } from "../src/provider.js";
 import { retrieveContext } from "../src/retriever.js";
@@ -202,7 +203,8 @@ async function main() {
   const templateFiles = args.template ? [args.template] : DEFAULT_TEMPLATES;
   const templates = templateFiles.map((file) => readJson(path.resolve(file)));
   const config = loadConfig();
-  const kb = loadKnowledgeBase(person);
+  const personConfig = loadPersonConfig(person, { config: args.config });
+  const kb = loadKnowledgeBaseFromDir(personConfig.knowledge_base_output);
   const version = nextVersion(resultsDir);
   const versionLabel = `V${version}`;
   const versionDir = path.join(resultsDir, versionLabel);

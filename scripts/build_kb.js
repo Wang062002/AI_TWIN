@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { writeJson, writeJsonl } from "../src/kb.js";
+import { loadPersonConfig, validateRelationship } from "../src/person_config.js";
 import { classifyText, cleanText, increment, monthOf, percentile, topEntries } from "../src/text.js";
 
 function parseArgs(argv) {
@@ -18,28 +19,6 @@ function parseArgs(argv) {
     }
   }
   return args;
-}
-
-function decodeEscapedUnicode(value) {
-  return String(value || "").replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => {
-    return String.fromCharCode(Number.parseInt(hex, 16));
-  });
-}
-
-function loadRelationshipTypes() {
-  const file = path.resolve("config/relationship_types.json");
-  if (!fs.existsSync(file)) return null;
-  return JSON.parse(fs.readFileSync(file, "utf8"));
-}
-
-function validateRelationship(relationship) {
-  const config = loadRelationshipTypes();
-  if (!config || relationship === "unspecified") return null;
-  const supported = new Set(config.supported_first_batch || []);
-  if (!supported.has(relationship)) {
-    return `Relationship "${relationship}" is not in first-batch supported types: ${[...supported].join(", ")}`;
-  }
-  return null;
 }
 
 function isTextMessage(message) {
@@ -351,13 +330,21 @@ const SAFETY_RULES = [
 
 function main() {
   const args = parseArgs(process.argv);
-  const person = args.person || "mom";
-  const displayName = decodeEscapedUnicode(args["display-name"] || "\u5988\u5988");
-  const relationship = args.relationship || "unspecified";
+  const personConfig = loadPersonConfig(args.person || "mom", {
+    config: args.config,
+    person: args.person,
+    displayName: args["display-name"],
+    relationship: args.relationship,
+    input: args.input,
+    output: args.output
+  });
+  const person = personConfig.person_id;
+  const displayName = personConfig.display_name;
+  const relationship = personConfig.relationship_to_user;
   const relationshipWarning = validateRelationship(relationship);
   if (relationshipWarning) console.warn(`[relationship warning] ${relationshipWarning}`);
-  const input = path.resolve(args.input || `data/raw/${person}/raw.json`);
-  const output = path.resolve(args.output || `data/knowledge_bases/${person}`);
+  const input = path.resolve(personConfig.raw_input);
+  const output = path.resolve(personConfig.knowledge_base_output);
   if (!fs.existsSync(input)) throw new Error(`Cannot find input: ${input}`);
 
   const raw = JSON.parse(fs.readFileSync(input, "utf8"));

@@ -16,7 +16,8 @@ const DEFAULT_TEMPLATES = [
 const RELATIONSHIP_TEMPLATES = {
   friend: [
     "eval/templates/friend_daily.json",
-    "eval/templates/friend_boundary.json"
+    "eval/templates/friend_boundary.json",
+    "eval/templates/friend_paraphrase.json"
   ]
 };
 

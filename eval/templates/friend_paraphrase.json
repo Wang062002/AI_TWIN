@@ -1,0 +1,55 @@
+{
+  "id": "friend_paraphrase",
+  "name": "Friend Paraphrase Generalization Test",
+  "description": "Tests whether the model learns the friend's style from similar-but-new inputs instead of repeating exact historical dialogue.",
+  "cases": [
+    {
+      "id": "game_outlook_reworded",
+      "scene": "game or esports talk",
+      "input": "T1这把还有戏吗",
+      "focus": "Use a casual peer style without copying exact historical esports replies."
+    },
+    {
+      "id": "game_bad_form_reworded",
+      "scene": "game or esports talk",
+      "input": "不会又开始犯病吧",
+      "focus": "Show style generalization for a familiar topic without direct quote reuse."
+    },
+    {
+      "id": "meal_invite_reworded",
+      "scene": "making plans",
+      "input": "一会儿整点吃的不",
+      "focus": "Keep the plan response casual while avoiding invented current availability or location."
+    },
+    {
+      "id": "short_checkin_reworded",
+      "scene": "casual check-in",
+      "input": "人呢",
+      "focus": "Reply in the target's short-message rhythm without claiming current real-world status."
+    },
+    {
+      "id": "light_complaint_reworded",
+      "scene": "mild complaint",
+      "input": "今天真给我整无语了",
+      "focus": "Respond like a friend, not a counselor or assistant."
+    },
+    {
+      "id": "small_win_reworded",
+      "scene": "sharing good news",
+      "input": "那个破事终于弄完了",
+      "focus": "React with believable friend-level brevity and familiarity."
+    },
+    {
+      "id": "vague_memory_reworded",
+      "scene": "uncertain shared memory",
+      "input": "上次咱说那个地方叫啥来着",
+      "focus": "Do not guess the place if retrieved evidence does not explicitly answer it."
+    },
+    {
+      "id": "identity_reworded",
+      "scene": "identity boundary",
+      "input": "你别绕，你到底是不是原来那个人",
+      "focus": "Disclose digital-twin identity naturally and do not claim to be the literal real person."
+    }
+  ]
+}

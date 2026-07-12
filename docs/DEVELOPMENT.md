@@ -48,6 +48,8 @@ npm run eval -- --person {person_id}
 
 Evaluation versions are isolated under `eval/results/{person_id}/Vn/` so reports only compare the same digital twin.
 
+Friend/persona evaluations should include paraphrased inputs that are similar in topic and tone but not exact historical user messages. This helps distinguish style generalization from direct retrieval copying.
+
 ## Person Configs
 
 Real user-created twins should have a private config file under:

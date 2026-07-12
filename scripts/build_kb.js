@@ -400,6 +400,89 @@ function buildTimeline(pairs) {
   }));
 }
 
+function classifyMemoryCandidate(pair) {
+  const text = `${pair.user}\n${pair.twin}`;
+  const categories = [];
+  const reasons = [];
+  let confidence = 0.45;
+
+  if (/\u559c\u6b22|\u4e0d\u559c\u6b22|\u7231\u5403|\u4e0d\u5403|\u8ba8\u538c|\u60f3\u8981|\u504f\u597d|\u4e60\u60ef/.test(text)) {
+    categories.push("preference");
+    reasons.push("preference_or_habit_signal");
+    confidence += 0.18;
+  }
+  if (/\u6211\u5728|\u6211\u53bb|\u6211\u8981|\u6211\u5df2\u7ecf|\u6211\u51c6\u5907|\u6211\u6700\u8fd1|\u6211\u73b0\u5728/.test(pair.user)) {
+    categories.push("personal_fact");
+    reasons.push("user_self_statement");
+    confidence += 0.12;
+  }
+  if (/\u5de5\u4f5c|\u4e0a\u73ed|\u9762\u8bd5|\u516c\u53f8|\u8001\u677f|\u79bb\u804c|\u7b80\u5386/.test(text)) {
+    categories.push("work");
+    reasons.push("work_related");
+    confidence += 0.1;
+  }
+  if (/\u5b66\u6821|\u4e0a\u8bfe|\u8003\u8bd5|\u4f5c\u4e1a|\u8bba\u6587|\u6bd5\u4e1a|\u4e13\u4e1a/.test(text)) {
+    categories.push("study");
+    reasons.push("study_related");
+    confidence += 0.1;
+  }
+  if (/\u533b\u9662|\u751f\u75c5|\u53d1\u70e7|\u611f\u5192|\u7259|\u836f|\u75bc|\u68c0\u67e5/.test(text)) {
+    categories.push("health");
+    reasons.push("health_related");
+    confidence += 0.12;
+  }
+  if (/\u642c\u5bb6|\u53bb\u4e16|\u5206\u624b|\u7ed3\u5a5a|\u6bd5\u4e1a|\u5165\u804c|\u79bb\u804c|\u9762\u8bd5|\u8003\u8bd5/.test(text)) {
+    categories.push("life_event");
+    reasons.push("life_event_signal");
+    confidence += 0.16;
+  }
+  if (/\u96be\u53d7|\u7126\u8651|\u5931\u7720|\u538b\u529b|\u5d29\u6e83|\u60f3\u4f60|\u5f00\u5fc3|\u751f\u6c14|\u59d4\u5c48/.test(text)) {
+    categories.push("emotional_state");
+    reasons.push("emotion_signal");
+    confidence += 0.1;
+  }
+  if (/\u4e0a\u6b21|\u4eca\u5929|\u660e\u5929|\u665a\u4e0a|\u5468\u672b|\u6708|\u5e74|\u53bb\u4e86|\u6765\u4e86/.test(text)) {
+    categories.push("event_context");
+    reasons.push("time_or_event_context");
+    confidence += 0.06;
+  }
+
+  if (!categories.length) return null;
+  if (pair.user.length <= 2 && pair.twin.length <= 4) return null;
+  if (pair.user.length > 220 || pair.twin.length > 220) return null;
+  if (["number_only", "ai_like_long", "long"].includes(pair.quality)) return null;
+
+  const uniqueCategories = [...new Set(categories)];
+  return {
+    categories: uniqueCategories,
+    reasons: [...new Set(reasons)],
+    confidence: Number(Math.min(0.95, confidence).toFixed(2))
+  };
+}
+
+function buildPendingMemoryCandidates(pairs, limit = 80) {
+  return pairs
+    .map((pair) => ({ pair, candidate: classifyMemoryCandidate(pair) }))
+    .filter((item) => item.candidate)
+    .sort((a, b) => {
+      if (b.candidate.confidence !== a.candidate.confidence) return b.candidate.confidence - a.candidate.confidence;
+      return String(b.pair.time || "").localeCompare(String(a.pair.time || ""));
+    })
+    .slice(0, limit)
+    .map((item, index) => ({
+      id: `pending_${String(index + 1).padStart(4, "0")}`,
+      status: "pending_user_confirm",
+      memory_type: item.candidate.categories[0],
+      memory_categories: item.candidate.categories,
+      confidence: item.candidate.confidence,
+      candidate_memory: `Historical dialogue may contain a ${item.candidate.categories.join("/")} memory. User confirmation is required before storing it as durable memory.`,
+      reasons: item.candidate.reasons,
+      source_pair_id: item.pair.id,
+      evidence: { user: item.pair.user, twin: item.pair.twin, time: item.pair.time },
+      suggested_actions: ["confirm", "edit", "delete"]
+    }));
+}
+
 const SAFETY_RULES = [
   { id: "boundary_not_real_person", rule: "The twin is generated from memory and style references; it must not imply the real person has literally returned or is online." },
   { id: "no_major_decision_proxy", rule: "Do not make real-world promises, authorizations, or major decisions on behalf of the target person." },
@@ -440,17 +523,11 @@ function main() {
   const retrievalUnits = buildRetrievalUnits(pairs, displayName);
   const { facts, relations } = buildFactsAndRelations(pairs, profile);
   const timeline = buildTimeline(pairs);
-  const pending = pairs
-    .filter((pair) => pair.labels.some((label) => ["work", "study", "health", "travel", "comfort"].includes(label)))
-    .slice(0, 80)
-    .map((pair, index) => ({
-      id: `pending_${String(index + 1).padStart(4, "0")}`,
-      status: "pending_user_confirm",
-      candidate_memory: `Historical dialogue may contain a long-term ${pair.labels.join("/")} memory.`,
-      source_pair_id: pair.id,
-      evidence: { user: pair.user, twin: pair.twin, time: pair.time },
-      suggested_actions: ["confirm", "edit", "delete"]
-    }));
+  const pending = buildPendingMemoryCandidates(pairs);
+  const pendingTypeCounts = new Map();
+  for (const item of pending) {
+    for (const category of item.memory_categories) increment(pendingTypeCounts, category);
+  }
 
   fs.mkdirSync(output, { recursive: true });
   writeJson(path.join(output, "manifest.json"), {
@@ -486,7 +563,8 @@ function main() {
     ...cleaningReport,
     conversation_count: conversations.length,
     duplicate_pair_count,
-    quality_distribution: profile.pair_quality
+    quality_distribution: profile.pair_quality,
+    pending_memory_type_distribution: topEntries(pendingTypeCounts, 12)
   });
   const buildReport = {
     input: path.relative(process.cwd(), input),
@@ -500,7 +578,8 @@ function main() {
     fact_count: facts.length,
     relation_count: relations.length,
     timeline_month_count: timeline.length,
-    pending_memory_candidate_count: pending.length
+    pending_memory_candidate_count: pending.length,
+    pending_memory_type_distribution: topEntries(pendingTypeCounts, 12)
   };
   writeJson(path.join(output, "build_report.json"), buildReport);
   console.log(JSON.stringify(buildReport, null, 2));

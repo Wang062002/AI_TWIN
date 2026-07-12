@@ -2,6 +2,7 @@
 node_modules/
 data/raw/
 data/knowledge_bases/
+data/person_configs/
 eval/results/
 *.log
 *.tmp

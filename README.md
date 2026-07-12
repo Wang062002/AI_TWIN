@@ -47,7 +47,7 @@ npm run build:kb:mom
 config/people/mom.json
 ```
 
-新增分身时，复制 `config/person.example.json` 到 `config/people/{person_id}.json`，修改 `display_name`、`relationship_to_user`、`raw_input` 和 `knowledge_base_output` 即可。
+新增真实分身时，复制 `config/person.example.json` 到 `data/person_configs/{person_id}.json`，修改 `display_name`、`relationship_to_user`、`raw_input` 和 `knowledge_base_output`。该目录包含真实人物信息，默认不会提交到 GitHub。`config/people/` 只用于可公开的演示配置。
 
 通用命令通过 `--person` 选择人物，例如：
 
@@ -58,6 +58,7 @@ npm run eval -- --person friend_demo
 ```
 
 每个人物的评测报告独立保存在 `eval/results/{person_id}/Vn/`，版本对比不会跨人物混用。
+评测脚本会根据 `relationship_to_user` 自动选择对应场景；当前朋友身份使用独立的日常与边界模板。
 
 2. 先不用 API，跑 mock 检查检索和 prompt：
 

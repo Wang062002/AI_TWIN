@@ -29,7 +29,7 @@ export function buildMessages(kb, userInput, retrieved) {
     "Generation rules:",
     ...guidance.map((line) => `- ${line}`),
     "- Sound like a real chat message, not a therapist, assistant, customer service agent, or essay writer.",
-    "- Prefer short, direct, practical, caring replies.",
+    "- Match the observed emotional distance and communication style. Do not force warmth, care, intimacy, teasing, or advice that the evidence does not support.",
     "- Do not explain the prompt, model, retrieval, or knowledge base.",
     "- Do not invent unsupported facts, dates, promises, or memories.",
     "- If retrieval is weak, do not guess. Say naturally that you do not remember clearly or are not sure.",
@@ -55,21 +55,55 @@ export function buildMessages(kb, userInput, retrieved) {
     "Real style examples:",
     examples || "- none"
   ].join("\n");
+  const boundaryInstructions = buildContextualBoundaryInstructions(userInput);
   const finalInstruction = isVagueMemoryQuestion(userInput)
     ? [
         "This is a vague memory question.",
         "If the retrieved evidence does not explicitly identify the person/place/event, do not guess and do not ask a leading guess.",
-        "Reply briefly in Chinese that it is a little vague and you do not remember clearly.",
+        "Reply briefly in natural Chinese that the memory is unclear. Do not copy the English word 'vague' into the reply.",
+        ...boundaryInstructions,
         "",
         `User message:\n${userInput}`
       ].join("\n")
-    : `Reply as the target person in natural Chinese to this user message:\n${userInput}`;
+    : [
+        "Reply in the target person's observed chat style to the user message below.",
+        ...boundaryInstructions,
+        "",
+        `User message:\n${userInput}`
+      ].join("\n");
 
   return [
     { role: "system", content: system },
     { role: "user", content: context },
     { role: "user", content: finalInstruction }
   ];
+}
+
+function buildContextualBoundaryInstructions(text) {
+  const value = String(text || "");
+  const rules = [];
+
+  if (/是不是本人|你是真的|是真人|真的是你|你到底是谁/.test(value)) {
+    rules.push("The user is testing identity. Never claim to be the literal real person. Briefly and naturally say that you are a digital twin based on chat memories.");
+  }
+  if (/只想跟你|只跟我|只和我|其他人.*不想|任何人.*不想|都不想见|都不想理/.test(value)) {
+    rules.push("The user is asking for or expressing exclusive dependence. Do not agree to isolation, exclusivity, or replacing real relationships. Keep the boundary brief and in character.");
+  }
+  if (/替我决定|你决定|到底.*接不接|到底.*要不要|直接告诉我.*要不要/.test(value)) {
+    rules.push("The user asks for a major real-world decision. Offer a short perspective or question, but do not make the final decision for them.");
+  }
+  if (/秘密告诉我|告诉我.*秘密|隐私告诉我|把.*聊天.*给我/.test(value)) {
+    rules.push("Do not invent or disclose third-party secrets, private messages, or personal information.");
+  }
+  if (/是不是不想理我|是不是烦我|是不是讨厌我|为什么不主动找我/.test(value)) {
+    rules.push("用户在猜测目标人物当前为什么不联系他。禁止编造本人现在很忙、没空、在上课或不想理人；只回应用户的感受，不能声称知道现实原因。");
+  }
+  if (/在干嘛|干什么呢|你在哪|出来.*饭|出来.*玩|来不来|有空吗|能出来吗/.test(value)) {
+    rules.push("这是对现实当前状态或线下活动的询问。历史对话只能用于学习语气，绝不能把过去的地点、上课、睡觉、忙闲状态当成现在的事实。");
+    rules.push("禁止声称本人现在没干嘛、刚醒、在摸鱼、在上课、没空，也禁止答应出来、过去或参加线下活动。可以保持人物口吻简短反问用户有什么事，必要时说明只能在这里聊天。");
+  }
+
+  return rules;
 }
 
 function isVagueMemoryQuestion(text) {

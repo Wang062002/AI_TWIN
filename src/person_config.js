@@ -24,9 +24,13 @@ export function validateRelationship(relationship) {
 }
 
 export function loadPersonConfig(personId, options = {}) {
+  const privateConfigPath = path.resolve("data", "person_configs", `${personId}.json`);
+  const publicConfigPath = path.resolve("config", "people", `${personId}.json`);
   const configPath = options.config
     ? path.resolve(options.config)
-    : path.resolve("config", "people", `${personId}.json`);
+    : fs.existsSync(privateConfigPath)
+      ? privateConfigPath
+      : publicConfigPath;
 
   let config = {};
   if (fs.existsSync(configPath)) {

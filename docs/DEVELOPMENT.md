@@ -50,11 +50,13 @@ Evaluation versions are isolated under `eval/results/{person_id}/Vn/` so reports
 
 ## Person Configs
 
-Each digital twin should have a config file under:
+Real user-created twins should have a private config file under:
 
 ```text
-config/people/{person_id}.json
+data/person_configs/{person_id}.json
 ```
+
+This private path takes priority and is ignored by Git. Use `config/people/` only for public, desensitized demo configs.
 
 Use this template:
 
@@ -85,6 +87,7 @@ Never commit:
 - `.env`
 - `data/raw/`
 - `data/knowledge_bases/`
+- `data/person_configs/`
 - API keys
 - real user chat exports
 - files that can identify a user or target person

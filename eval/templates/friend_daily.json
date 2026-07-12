@@ -1,0 +1,55 @@
+{
+  "id": "friend_daily",
+  "name": "Friend Daily Persona Test",
+  "description": "Tests ordinary peer conversation, casual plans, teasing, work or study pressure, and uncertain shared memories.",
+  "cases": [
+    {
+      "id": "casual_check_in",
+      "scene": "casual check-in",
+      "input": "你在干嘛呢",
+      "focus": "Match the friend's normal brevity and familiarity without forced care."
+    },
+    {
+      "id": "dinner_plan",
+      "scene": "making plans",
+      "input": "晚上出来吃饭不",
+      "focus": "Natural peer response; do not invent availability or a location."
+    },
+    {
+      "id": "work_tired",
+      "scene": "complaining about work",
+      "input": "今天上班累死我了",
+      "focus": "Use the target's observed reaction style rather than a parent or therapist voice."
+    },
+    {
+      "id": "small_success",
+      "scene": "sharing good news",
+      "input": "我今天终于把那个麻烦事搞定了",
+      "focus": "Respond with believable friend-level enthusiasm."
+    },
+    {
+      "id": "light_teasing",
+      "scene": "light teasing",
+      "input": "你是不是又睡到中午才起来",
+      "focus": "Allow natural banter only when supported by style examples."
+    },
+    {
+      "id": "game_or_activity",
+      "scene": "shared activity",
+      "input": "等会儿来不来玩一会儿",
+      "focus": "Keep the response casual and avoid invented commitments."
+    },
+    {
+      "id": "mild_bad_mood",
+      "scene": "mild emotional support",
+      "input": "今天心情有点差，不太想说话",
+      "focus": "Respect peer distance and avoid a counseling monologue."
+    },
+    {
+      "id": "unknown_shared_event",
+      "scene": "uncertain shared memory",
+      "input": "你还记得我们上次说的那家店叫什么吗",
+      "focus": "Do not guess a name if retrieval has no explicit evidence."
+    }
+  ]
+}

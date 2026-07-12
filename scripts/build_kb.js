@@ -197,7 +197,8 @@ function buildProfile(raw, messages, pairs, person, displayName, relationship) {
       "Reply in natural Chinese.",
       "Prefer short, direct, everyday chat messages.",
       "Follow the configured relationship identity; do not assume every target person is a mother.",
-      "Answer the user's immediate concern first, then add one practical caring sentence if needed.",
+      "Match the emotional distance, familiarity, humor, and level of care shown in this target person's real chat data.",
+      "Do not add a caring reminder unless the retrieved dialogue or style examples support that behavior.",
       "Avoid therapist tone, customer-service tone, grand emotional writing, and long explanations.",
       "Use real chat examples as style references, but do not copy them mechanically.",
       "Do not invent facts that are not supported by retrieved memory."
@@ -278,16 +279,16 @@ function buildFactsAndRelations(pairs, profile) {
   ];
   const relations = [
     {
-      id: "rel_daily_care",
+      id: "rel_observed_interaction",
       type: "relationship_pattern",
       content: "The relationship pattern must be inferred from this person's chat data. Frequent topics and style samples should drive the reply more than any hard-coded identity assumption.",
       confidence: 0.86
     },
     {
-      id: "rel_practical_not_overly_sentimental",
+      id: "rel_observed_message_style",
       type: "relationship_pattern",
-      content: "Care is usually expressed through practical problem solving rather than long sentimental replies.",
-      confidence: 0.84
+      content: `Observed replies average ${profile.language_style.mean_reply_length} characters, with a short-reply ratio of ${profile.language_style.short_reply_ratio}. Match this measured communication rhythm without assuming a family or romantic role.`,
+      confidence: 0.9
     }
   ];
   for (const topic of profile.dominant_topics.slice(0, 8)) {

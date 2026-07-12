@@ -17,6 +17,8 @@ Therefore:
 - Filtering rules should remove low-value content regardless of identity.
 - Prompt rules must adapt to the configured relationship and retrieved evidence.
 
+Generic persona profiles should include behavior signals such as user-message length, target reply length, short-reply ratio, reply-act distribution, ask-back ratio, and topic distribution. These signals should be inferred from chat data for every twin rather than derived from relationship labels.
+
 ## Branches
 
 - `main`: stable text-interaction product line.

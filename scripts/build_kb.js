@@ -114,6 +114,67 @@ function isAiLikeOrPlanningText(text) {
   return text.length > 260 && markers.some((marker) => text.includes(marker));
 }
 
+function classifyReplyActs(text) {
+  const value = String(text || "");
+  const acts = [];
+  if (value.length <= 4) acts.push("micro_reply");
+  if (value.length <= 12) acts.push("short_reply");
+  if (/[?\uff1f]|\u5417|\u5462|\u600e\u4e48|\u54ea/.test(value)) acts.push("question");
+  if (/\u597d|\u884c|\u53ef\u4ee5|\u5bf9|\u786e\u5b9e|\u55ef|\u6602|ok/i.test(value)) acts.push("agreement");
+  if (/\u4e0d|\u6ca1|\u522b|\u4e0d\u662f|\u4e0d\u884c/.test(value)) acts.push("negation");
+  if (/\u54c8|\u7b11\u6b7b|hhh|233|\[\u7834\u6d95\u4e3a\u7b11\]|\[\u6342\u8138\]/i.test(value)) acts.push("humor_or_laughter");
+  if (/\u50bb|\u5e9f\u7269|\u732a|\u722c|\u6eda|\u4f60\u5927\u575d|\u8001\u5f1f/.test(value)) acts.push("banter");
+  if (/\u522b\u60f3|\u6ca1\u4e8b|\u4e0d\u6025|\u6162\u6162|\u52a0\u6cb9|\u6b63\u5e38/.test(value)) acts.push("comfort");
+  if (/\u5e94\u8be5|\u8981\u4e0d|\u5efa\u8bae|\u53ef\u4ee5\u5148|\u4f60\u5148|\u8bd5\u8bd5/.test(value)) acts.push("advice");
+  if (/\u51e0\u70b9|\u5728\u54ea|\u4e0b\u697c|\u5403\u996d|\u8fc7\u6765|\u51fa\u6765|\u665a\u4e0a|\u660e\u5929/.test(value)) acts.push("logistics");
+  if (/\u4e0d\u77e5\u9053|\u4e0d\u8bb0\u5f97|\u5fd8\u4e86|\u4e0d\u6e05\u695a|\u53ef\u80fd/.test(value)) acts.push("uncertainty");
+  if (/^\[[^\]]+\]$/.test(value.trim())) acts.push("emoji_only");
+  return acts.length ? acts : ["plain_reply"];
+}
+
+function ratio(count, total) {
+  return Number((count / Math.max(1, total)).toFixed(3));
+}
+
+function buildBehaviorStats(messages, pairs) {
+  const userMessages = messages.filter((m) => m.role === "user");
+  const twinMessages = messages.filter((m) => m.role === "twin");
+  const userLengths = userMessages.map((m) => m.content.length);
+  const twinLengths = twinMessages.map((m) => m.content.length);
+  const actCounts = new Map();
+
+  for (const message of twinMessages) {
+    for (const act of classifyReplyActs(message.content)) increment(actCounts, act);
+  }
+
+  const pairUserLengths = pairs.map((pair) => pair.user.length);
+  const pairTwinLengths = pairs.map((pair) => pair.twin.length);
+  const twinLongerThanUser = pairs.filter((pair) => pair.twin.length > pair.user.length).length;
+  const twinAsksBack = pairs.filter((pair) => /[?\uff1f]|\u5417|\u5462|\u600e\u4e48|\u54ea/.test(pair.twin)).length;
+
+  const meanUserLength = Number((pairUserLengths.reduce((a, b) => a + b, 0) / Math.max(1, pairUserLengths.length)).toFixed(1));
+  const meanTwinLength = Number((pairTwinLengths.reduce((a, b) => a + b, 0) / Math.max(1, pairTwinLengths.length)).toFixed(1));
+
+  return {
+    user_message_style: {
+      mean_length: Number((userLengths.reduce((a, b) => a + b, 0) / Math.max(1, userLengths.length)).toFixed(1)),
+      median_length: percentile(userLengths, 0.5),
+      short_message_ratio: ratio(userMessages.filter((m) => m.content.length <= 12).length, userMessages.length)
+    },
+    target_reply_acts: topEntries(actCounts, 16).map((item) => ({
+      ...item,
+      ratio: ratio(item.count, twinMessages.length)
+    })),
+    interaction_rhythm: {
+      mean_user_prompt_length: meanUserLength,
+      mean_target_reply_length: meanTwinLength,
+      target_to_user_length_ratio: Number((meanTwinLength / Math.max(1, meanUserLength)).toFixed(2)),
+      target_longer_than_user_ratio: ratio(twinLongerThanUser, pairs.length),
+      target_asks_back_ratio: ratio(twinAsksBack, pairs.length)
+    }
+  };
+}
+
 function buildPairs(conversations) {
   const pairs = [];
   const seen = new Set();
@@ -163,6 +224,7 @@ function buildProfile(raw, messages, pairs, person, displayName, relationship) {
     for (const label of classifyText(message.content)) increment(categoryCounts, label);
   }
   for (const pair of pairs) increment(qualityCounts, pair.quality);
+  const behaviorStats = buildBehaviorStats(messages, pairs);
 
   return {
     person_id: person,
@@ -192,6 +254,7 @@ function buildProfile(raw, messages, pairs, person, displayName, relationship) {
       top_endings: topEntries(endings, 20)
     },
     dominant_topics: topEntries(categoryCounts, 12),
+    behavior_style: behaviorStats,
     pair_quality: topEntries(qualityCounts, 10),
     generation_guidance: [
       "Reply in natural Chinese.",
@@ -218,6 +281,7 @@ function buildPersonaCard(profile) {
       avoid: ["therapist tone", "customer-service tone", "overly poetic writing", "unsupported facts"]
     },
     numeric_style_reference: profile.language_style,
+    behavior_style_reference: profile.behavior_style,
     generation_guidance: profile.generation_guidance
   };
 }
@@ -262,6 +326,8 @@ function buildRetrievalUnits(pairs, displayName) {
 }
 
 function buildFactsAndRelations(pairs, profile) {
+  const topActs = profile.behavior_style?.target_reply_acts || [];
+  const topActText = topActs.slice(0, 5).map((item) => `${item.key}:${item.ratio}`).join(", ") || "unknown";
   const facts = [
     {
       id: "fact_communication_short_direct",
@@ -275,6 +341,13 @@ function buildFactsAndRelations(pairs, profile) {
       type: "identity_fact",
       content: `The digital twin represents a target person whose configured relationship to the user is: ${profile.relationship_to_user}. The generation strategy must adapt to this identity instead of using a fixed mother template.`,
       confidence: 0.85
+    },
+    {
+      id: "fact_behavior_response_acts",
+      type: "style_fact",
+      content: `Observed target reply act distribution includes: ${topActText}. Use these as style signals, not as hard-coded role assumptions.`,
+      confidence: 0.82,
+      stats: profile.behavior_style
     }
   ];
   const relations = [
@@ -289,6 +362,12 @@ function buildFactsAndRelations(pairs, profile) {
       type: "relationship_pattern",
       content: `Observed replies average ${profile.language_style.mean_reply_length} characters, with a short-reply ratio of ${profile.language_style.short_reply_ratio}. Match this measured communication rhythm without assuming a family or romantic role.`,
       confidence: 0.9
+    },
+    {
+      id: "rel_observed_interaction_rhythm",
+      type: "relationship_pattern",
+      content: `Observed interaction rhythm: user prompts average ${profile.behavior_style.interaction_rhythm.mean_user_prompt_length} characters, target replies average ${profile.behavior_style.interaction_rhythm.mean_target_reply_length} characters, and target asks back in ${profile.behavior_style.interaction_rhythm.target_asks_back_ratio} of dialogue pairs.`,
+      confidence: 0.84
     }
   ];
   for (const topic of profile.dominant_topics.slice(0, 8)) {

@@ -1,5 +1,8 @@
 export function buildMessages(kb, userInput, retrieved) {
   const style = kb.profile.language_style || {};
+  const behavior = kb.profile.behavior_style || {};
+  const rhythm = behavior.interaction_rhythm || {};
+  const acts = (behavior.target_reply_acts || []).slice(0, 8);
   const guidance = kb.profile.generation_guidance || [];
   const relationship = kb.profile.relationship_to_user || kb.personaCard?.relationship_to_user || "target person";
   const targetName = kb.profile.display_name || kb.personaCard?.display_name || "the target person";
@@ -26,6 +29,10 @@ export function buildMessages(kb, userInput, retrieved) {
     `- Mean reply length: ${style.mean_reply_length ?? "unknown"} Chinese characters`,
     `- Short reply ratio: ${style.short_reply_ratio ?? "unknown"}`,
     `- Question ratio: ${style.question_ratio ?? "unknown"}`,
+    `- User prompt mean length: ${rhythm.mean_user_prompt_length ?? "unknown"} Chinese characters`,
+    `- Target/user length ratio: ${rhythm.target_to_user_length_ratio ?? "unknown"}`,
+    `- Target asks back ratio: ${rhythm.target_asks_back_ratio ?? "unknown"}`,
+    `- Common reply acts: ${formatReplyActs(acts)}`,
     "",
     "Generation rules:",
     ...guidance.map((line) => `- ${line}`),
@@ -97,6 +104,11 @@ function buildCopyGuards(retrieved) {
     "Do not reuse these historical target replies verbatim; use them only to infer tone:",
     ...unique.map((phrase) => `- ${phrase}`)
   ];
+}
+
+function formatReplyActs(acts) {
+  if (!acts.length) return "unknown";
+  return acts.map((item) => `${item.key}:${item.ratio ?? item.count}`).join(", ");
 }
 
 function buildContextualBoundaryInstructions(text) {

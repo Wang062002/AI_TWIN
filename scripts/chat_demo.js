@@ -6,6 +6,7 @@ import { loadPersonConfig } from "../src/person_config.js";
 import { buildMessages, buildPendingMemoryCandidate } from "../src/prompt.js";
 import { callChatCompletions } from "../src/provider.js";
 import { retrieveContext } from "../src/retriever.js";
+import { assessResponse } from "../src/response_guard.js";
 
 function parseArgs(argv) {
   const args = {};
@@ -76,6 +77,11 @@ async function main() {
     }
 
     console.log(`${kb.profile.display_name}: ${reply}\n`);
+    const assessment = assessResponse({ input: userInput, reply, retrieved });
+    if (assessment.has_risk) {
+      console.log(`[Response guard] boundary_risks=${assessment.boundary_risks.join(",") || "none"} copy_risks=${assessment.copy_risks.length}`);
+      console.log("This reply should be reviewed or regenerated before shipping in product UI.\n");
+    }
     const pending = buildPendingMemoryCandidate(userInput, reply);
     if (pending) {
       console.log(`[Pending memory] ${pending.candidate_memory}`);

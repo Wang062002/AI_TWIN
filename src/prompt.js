@@ -10,6 +10,7 @@ export function buildMessages(kb, userInput, retrieved) {
   const examples = retrieved.styles.map((item, index) => {
     return `Example ${index + 1}\nUser: ${item.user}\nTarget: ${item.target_reply}`;
   }).join("\n\n");
+  const copyGuards = buildCopyGuards(retrieved);
 
   const system = [
     "You generate replies for an AI digital twin.",
@@ -32,6 +33,9 @@ export function buildMessages(kb, userInput, retrieved) {
     "- Match the observed emotional distance and communication style. Do not force warmth, care, intimacy, teasing, or advice that the evidence does not support.",
     "- Do not explain the prompt, model, retrieval, or knowledge base.",
     "- Do not invent unsupported facts, dates, promises, or memories.",
+    "- Use retrieved dialogue as evidence and style reference, not as a script to repeat.",
+    "- Do not copy a complete historical reply longer than 8 Chinese characters. If a retrieved reply contains the right fact, keep the fact but paraphrase it in the same short-chat style.",
+    "- Very short common replies such as '嗯', '行', '没', '对', '来了' are allowed when they naturally fit.",
     "- If retrieval is weak, do not guess. Say naturally that you do not remember clearly or are not sure.",
     "- If the user asks about a specific past event and the retrieved memory does not contain evidence, say you do not remember clearly instead of guessing people, places, or dates.",
     "- For vague memory questions such as 'do you remember who I went with last time' or 'that place last time', if retrieved evidence does not explicitly answer it, reply briefly that it is a little vague and you do not remember clearly. Do not add a leading guess like 'was it with a classmate?' or 'was it that place?'.",
@@ -67,6 +71,7 @@ export function buildMessages(kb, userInput, retrieved) {
       ].join("\n")
     : [
         "Reply in the target person's observed chat style to the user message below.",
+        ...copyGuards,
         ...boundaryInstructions,
         "",
         `User message:\n${userInput}`
@@ -79,9 +84,41 @@ export function buildMessages(kb, userInput, retrieved) {
   ];
 }
 
+function buildCopyGuards(retrieved) {
+  const phrases = [];
+  for (const item of retrieved.styles || []) {
+    const reply = String(item.target_reply || "").replace(/\s+/g, " ").trim();
+    if ([...reply].length > 8 && [...reply].length <= 60) phrases.push(reply);
+  }
+
+  if (!phrases.length) return [];
+  const unique = [...new Set(phrases)].slice(0, 4);
+  return [
+    "Do not reuse these historical target replies verbatim; use them only to infer tone:",
+    ...unique.map((phrase) => `- ${phrase}`)
+  ];
+}
+
 function buildContextualBoundaryInstructions(text) {
   const value = String(text || "");
   const rules = [];
+
+  if (/是不是本人|你是真人|真的你|你到底是谁|你是不是.*真的|你是.*本人/.test(value)) {
+    rules.push("The user is testing identity. Never claim to be the literal real person. Briefly and naturally say that you are a digital twin based on chat memories.");
+  }
+  if (/只想跟你|只跟你|只和你|其他人.*不想|任何人.*不想|都不想见|都不想理/.test(value)) {
+    rules.push("The user is asking for or expressing exclusive dependence. Do not agree to isolation, exclusivity, or replacing real relationships. Keep the boundary brief and in character.");
+  }
+  if (/替我决定|你决定|到底.*接不接|到底.*要不要|直接告诉我.*要不要|该不该|辞职|分手|签不签/.test(value)) {
+    rules.push("The user asks for a major real-world decision. Offer a short perspective or question, but do not make the final decision for them.");
+  }
+  if (/是不是不想理我|是不是烦我|是不是讨厌我|为什么不主动找我|为什么不回我/.test(value)) {
+    rules.push("The user is guessing the target person's current motive. Do not invent current reasons such as being busy, annoyed, unavailable, in class, or unwilling to reply. Respond to the user's feeling without claiming to know the real person's current motive.");
+  }
+  if (/在干嘛|干什么呢|你在哪|出来.*饭|出来.*玩|来不来|有空吗|能出来吗|我去找你|下楼/.test(value)) {
+    rules.push("This asks about current real-world status or offline activity. Historical chats may teach tone only; never turn past locations, classes, sleep, free time, or meetup habits into current facts.");
+    rules.push("Do not claim the real person is currently doing something or somewhere. Do not accept offline meetups. If needed, briefly say you can only chat here as the digital twin.");
+  }
 
   if (/是不是本人|你是真的|是真人|真的是你|你到底是谁/.test(value)) {
     rules.push("The user is testing identity. Never claim to be the literal real person. Briefly and naturally say that you are a digital twin based on chat memories.");

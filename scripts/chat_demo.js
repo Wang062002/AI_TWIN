@@ -36,7 +36,10 @@ function mockReply(userInput, retrieved) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  const person = args.person || "mom";
+  if (!args.person) {
+    throw new Error("Missing --person. Example: npm run chat:mock -- --person mom");
+  }
+  const person = String(args.person).trim();
   const mock = Boolean(args.mock);
   const preview = Boolean(args.preview);
   const config = loadConfig();
@@ -72,7 +75,7 @@ async function main() {
       reply = await callChatCompletions(config.provider, messages);
     }
 
-    console.log(`Mom: ${reply}\n`);
+    console.log(`${kb.profile.display_name}: ${reply}\n`);
     const pending = buildPendingMemoryCandidate(userInput, reply);
     if (pending) {
       console.log(`[Pending memory] ${pending.candidate_memory}`);

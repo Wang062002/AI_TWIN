@@ -38,6 +38,16 @@ For API behavior checks:
 npm run eval:mom
 ```
 
+Generic commands for any configured person:
+
+```powershell
+npm run build:kb -- --person {person_id}
+npm run chat:mock -- --person {person_id}
+npm run eval -- --person {person_id}
+```
+
+Evaluation versions are isolated under `eval/results/{person_id}/Vn/` so reports only compare the same digital twin.
+
 ## Person Configs
 
 Each digital twin should have a config file under:

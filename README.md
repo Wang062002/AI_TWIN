@@ -9,6 +9,7 @@ data/raw/mom/raw.json              原始聊天数据
 data/knowledge_bases/mom/          构建后的 mom 知识库
 scripts/build_kb.js                从聊天记录构建知识库
 scripts/chat_demo.js               本地命令行聊天测试
+scripts/evaluate_person_api.js     按人物独立生成版本化 API 评测报告
 src/config.js                      读取 .env 和配置
 src/kb.js                          加载知识库
 src/retriever.js                   本地轻量检索
@@ -47,6 +48,16 @@ config/people/mom.json
 ```
 
 新增分身时，复制 `config/person.example.json` 到 `config/people/{person_id}.json`，修改 `display_name`、`relationship_to_user`、`raw_input` 和 `knowledge_base_output` 即可。
+
+通用命令通过 `--person` 选择人物，例如：
+
+```powershell
+npm run build:kb -- --person friend_demo
+npm run chat:mock -- --person friend_demo
+npm run eval -- --person friend_demo
+```
+
+每个人物的评测报告独立保存在 `eval/results/{person_id}/Vn/`，版本对比不会跨人物混用。
 
 2. 先不用 API，跑 mock 检查检索和 prompt：
 

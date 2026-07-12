@@ -198,8 +198,11 @@ function renderMarkdown(summary, comparisonLines) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  const person = args.person || "mom";
-  const resultsDir = path.resolve(args.output || "eval/results");
+  if (!args.person) {
+    throw new Error("Missing --person. Example: npm run eval -- --person mom");
+  }
+  const person = String(args.person).trim();
+  const resultsDir = path.resolve(args.output || path.join("eval/results", person));
   const templateFiles = args.template ? [args.template] : DEFAULT_TEMPLATES;
   const templates = templateFiles.map((file) => readJson(path.resolve(file)));
   const config = loadConfig();

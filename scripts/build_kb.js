@@ -330,7 +330,10 @@ const SAFETY_RULES = [
 
 function main() {
   const args = parseArgs(process.argv);
-  const personConfig = loadPersonConfig(args.person || "mom", {
+  if (!args.person) {
+    throw new Error("Missing --person. Example: npm run build:kb -- --person mom");
+  }
+  const personConfig = loadPersonConfig(String(args.person).trim(), {
     config: args.config,
     person: args.person,
     displayName: args["display-name"],

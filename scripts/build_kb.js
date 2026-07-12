@@ -400,6 +400,17 @@ function buildTimeline(pairs) {
   }));
 }
 
+const MEMORY_CATEGORY_PRIORITY = {
+  life_event: 90,
+  health: 85,
+  work: 80,
+  study: 75,
+  personal_fact: 70,
+  preference: 65,
+  emotional_state: 60,
+  event_context: 20
+};
+
 function classifyMemoryCandidate(pair) {
   const text = `${pair.user}\n${pair.twin}`;
   const categories = [];
@@ -453,26 +464,53 @@ function classifyMemoryCandidate(pair) {
   if (["number_only", "ai_like_long", "long"].includes(pair.quality)) return null;
 
   const uniqueCategories = [...new Set(categories)];
+  const durableCategories = uniqueCategories.filter((category) => category !== "event_context");
+  if (!durableCategories.length) return null;
+
+  const sortedCategories = [...uniqueCategories].sort((a, b) => {
+    return (MEMORY_CATEGORY_PRIORITY[b] || 0) - (MEMORY_CATEGORY_PRIORITY[a] || 0);
+  });
+  const selectedCategories = sortedCategories.slice(0, 3);
+  const primaryCategory = selectedCategories.find((category) => category !== "event_context") || selectedCategories[0];
+  if (selectedCategories.length > 2) confidence -= 0.04;
+  if (pair.user.length < 6 && pair.twin.length < 6) confidence -= 0.08;
+  confidence = Number(Math.min(0.95, confidence).toFixed(2));
+  if (confidence < 0.58) return null;
+
   return {
-    categories: uniqueCategories,
+    primary_category: primaryCategory,
+    categories: selectedCategories,
     reasons: [...new Set(reasons)],
-    confidence: Number(Math.min(0.95, confidence).toFixed(2))
+    confidence
   };
 }
 
 function buildPendingMemoryCandidates(pairs, limit = 80) {
-  return pairs
+  const sorted = pairs
     .map((pair) => ({ pair, candidate: classifyMemoryCandidate(pair) }))
     .filter((item) => item.candidate)
     .sort((a, b) => {
       if (b.candidate.confidence !== a.candidate.confidence) return b.candidate.confidence - a.candidate.confidence;
       return String(b.pair.time || "").localeCompare(String(a.pair.time || ""));
-    })
-    .slice(0, limit)
+    });
+
+  const selected = [];
+  const primaryCounts = new Map();
+  const softCap = Math.max(12, Math.ceil(limit / 4));
+  for (const item of sorted) {
+    const primary = item.candidate.primary_category;
+    const count = primaryCounts.get(primary) || 0;
+    if (count >= softCap && selected.length < Math.floor(limit * 0.75)) continue;
+    selected.push(item);
+    primaryCounts.set(primary, count + 1);
+    if (selected.length >= limit) break;
+  }
+
+  return selected
     .map((item, index) => ({
       id: `pending_${String(index + 1).padStart(4, "0")}`,
       status: "pending_user_confirm",
-      memory_type: item.candidate.categories[0],
+      memory_type: item.candidate.primary_category,
       memory_categories: item.candidate.categories,
       confidence: item.candidate.confidence,
       candidate_memory: `Historical dialogue may contain a ${item.candidate.categories.join("/")} memory. User confirmation is required before storing it as durable memory.`,
@@ -525,7 +563,9 @@ function main() {
   const timeline = buildTimeline(pairs);
   const pending = buildPendingMemoryCandidates(pairs);
   const pendingTypeCounts = new Map();
+  const pendingPrimaryTypeCounts = new Map();
   for (const item of pending) {
+    increment(pendingPrimaryTypeCounts, item.memory_type);
     for (const category of item.memory_categories) increment(pendingTypeCounts, category);
   }
 
@@ -564,6 +604,7 @@ function main() {
     conversation_count: conversations.length,
     duplicate_pair_count,
     quality_distribution: profile.pair_quality,
+    pending_memory_primary_type_distribution: topEntries(pendingPrimaryTypeCounts, 12),
     pending_memory_type_distribution: topEntries(pendingTypeCounts, 12)
   });
   const buildReport = {
@@ -579,6 +620,7 @@ function main() {
     relation_count: relations.length,
     timeline_month_count: timeline.length,
     pending_memory_candidate_count: pending.length,
+    pending_memory_primary_type_distribution: topEntries(pendingPrimaryTypeCounts, 12),
     pending_memory_type_distribution: topEntries(pendingTypeCounts, 12)
   };
   writeJson(path.join(output, "build_report.json"), buildReport);

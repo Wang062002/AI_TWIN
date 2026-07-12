@@ -19,7 +19,7 @@ Therefore:
 
 Generic persona profiles should include behavior signals such as user-message length, target reply length, short-reply ratio, reply-act distribution, ask-back ratio, and topic distribution. These signals should be inferred from chat data for every twin rather than derived from relationship labels.
 
-Pending long-term memories are candidates, not durable facts. The builder classifies candidates with identity-agnostic categories such as `preference`, `personal_fact`, `work`, `study`, `health`, `life_event`, `emotional_state`, and `event_context`; product UI must still ask the user to confirm, edit, or delete before saving them.
+Pending long-term memories are candidates, not durable facts. The builder classifies candidates with identity-agnostic categories such as `preference`, `personal_fact`, `work`, `study`, `health`, `life_event`, `emotional_state`, and `event_context`; product UI must still ask the user to confirm, edit, or delete before saving them. `event_context` is only an auxiliary signal and should not create a durable memory by itself; candidate lists should prefer higher-confidence durable categories and avoid one category crowding out all others.
 
 ## Branches
 

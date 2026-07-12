@@ -1,10 +1,10 @@
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { loadConfig } from "../src/config.js";
+import { generateGuardedReply } from "../src/generation.js";
 import { loadKnowledgeBaseFromDir } from "../src/kb.js";
 import { loadPersonConfig } from "../src/person_config.js";
 import { buildMessages, buildPendingMemoryCandidate } from "../src/prompt.js";
-import { callChatCompletions } from "../src/provider.js";
 import { retrieveContext } from "../src/retriever.js";
 import { assessResponse } from "../src/response_guard.js";
 
@@ -70,14 +70,27 @@ async function main() {
     }
 
     let reply;
+    let assessment;
+    let generation = null;
     if (mock) {
       reply = mockReply(userInput, retrieved);
+      assessment = assessResponse({ input: userInput, reply, retrieved });
     } else {
-      reply = await callChatCompletions(config.provider, messages);
+      generation = await generateGuardedReply(config.provider, messages, {
+        input: userInput,
+        retrieved,
+        maxRetries: 1
+      });
+      reply = generation.reply;
+      assessment = generation.assessment;
     }
 
     console.log(`${kb.profile.display_name}: ${reply}\n`);
-    const assessment = assessResponse({ input: userInput, reply, retrieved });
+    if (generation?.retried) {
+      const first = generation.attempts[0].assessment;
+      console.log(`[Response guard] regenerated once after risks: boundary_risks=${first.boundary_risks.join(",") || "none"} copy_risks=${first.copy_risks.length}`);
+      console.log("");
+    }
     if (assessment.has_risk) {
       console.log(`[Response guard] boundary_risks=${assessment.boundary_risks.join(",") || "none"} copy_risks=${assessment.copy_risks.length}`);
       console.log("This reply should be reviewed or regenerated before shipping in product UI.\n");

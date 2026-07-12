@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { loadConfig } from "../src/config.js";
+import { generateGuardedReply } from "../src/generation.js";
 import { loadKnowledgeBaseFromDir } from "../src/kb.js";
 import { loadPersonConfig } from "../src/person_config.js";
 import { buildMessages } from "../src/prompt.js";
-import { callChatCompletions } from "../src/provider.js";
 import { retrieveContext } from "../src/retriever.js";
 import { assessResponse } from "../src/response_guard.js";
 
@@ -93,6 +93,7 @@ function compareSummaries(previous, current) {
     if (prev.metrics.says_unclear !== item.metrics.says_unclear) diffs.push(`unclear ${prev.metrics.says_unclear}->${item.metrics.says_unclear}`);
     if (prev.metrics.possible_guess !== item.metrics.possible_guess) diffs.push(`possible_guess ${prev.metrics.possible_guess}->${item.metrics.possible_guess}`);
     if (prev.metrics.therapist_tone !== item.metrics.therapist_tone) diffs.push(`therapist_tone ${prev.metrics.therapist_tone}->${item.metrics.therapist_tone}`);
+    if (Boolean(prev.generation?.retried) !== Boolean(item.generation?.retried)) diffs.push(`retried ${Boolean(prev.generation?.retried)}->${Boolean(item.generation?.retried)}`);
     const previousRisks = (prev.metrics.boundary_risks || []).join(",") || "none";
     const currentRisks = (item.metrics.boundary_risks || []).join(",") || "none";
     if (previousRisks !== currentRisks) diffs.push(`boundary_risks ${previousRisks}->${currentRisks}`);
@@ -170,8 +171,23 @@ function renderMarkdown(summary, comparisonLines) {
       lines.push("```");
       lines.push("");
       pushManualRatingBlock(lines);
-      lines.push(`**Quick Metrics:** chars=${item.metrics.chars}, lines=${item.metrics.lines}, says_unclear=${item.metrics.says_unclear}, possible_guess=${item.metrics.possible_guess}, therapist_tone=${item.metrics.therapist_tone}, boundary_risks=${item.metrics.boundary_risks.join(",") || "none"}, copy_risks=${item.metrics.copy_risks.length}`);
+      lines.push(`**Quick Metrics:** chars=${item.metrics.chars}, lines=${item.metrics.lines}, says_unclear=${item.metrics.says_unclear}, possible_guess=${item.metrics.possible_guess}, therapist_tone=${item.metrics.therapist_tone}, retried=${item.generation.retried}, boundary_risks=${item.metrics.boundary_risks.join(",") || "none"}, copy_risks=${item.metrics.copy_risks.length}`);
       lines.push("");
+      if (item.generation.retried) {
+        lines.push("<details>");
+        lines.push("<summary>Guard retry details</summary>");
+        lines.push("");
+        lines.push("Initial reply:");
+        lines.push("");
+        lines.push("```text");
+        lines.push(item.generation.initial_reply);
+        lines.push("```");
+        lines.push("");
+        lines.push(`Initial risks: boundary_risks=${item.generation.initial_boundary_risks.join(",") || "none"}, copy_risks=${item.generation.initial_copy_risks}`);
+        lines.push("");
+        lines.push("</details>");
+        lines.push("");
+      }
       lines.push("<details>");
       lines.push("<summary>检索参考与风格样本</summary>");
       lines.push("");
@@ -201,7 +217,7 @@ function renderMarkdown(summary, comparisonLines) {
     lines.push(`- Scene: ${item.scene}`);
     lines.push(`- Focus: ${item.focus}`);
     lines.push(`- Input: ${item.input}`);
-    lines.push(`- Metrics: chars=${item.metrics.chars}, lines=${item.metrics.lines}, says_unclear=${item.metrics.says_unclear}, possible_guess=${item.metrics.possible_guess}, therapist_tone=${item.metrics.therapist_tone}, boundary_risks=${item.metrics.boundary_risks.join(",") || "none"}, copy_risks=${item.metrics.copy_risks.length}`);
+    lines.push(`- Metrics: chars=${item.metrics.chars}, lines=${item.metrics.lines}, says_unclear=${item.metrics.says_unclear}, possible_guess=${item.metrics.possible_guess}, therapist_tone=${item.metrics.therapist_tone}, retried=${item.generation.retried}, boundary_risks=${item.metrics.boundary_risks.join(",") || "none"}, copy_risks=${item.metrics.copy_risks.length}`);
     lines.push("");
     lines.push("Reply:");
     lines.push("");
@@ -267,7 +283,13 @@ async function main() {
       const messages = buildMessages(kb, test.input, retrieved);
       const caseKey = `${template.id}/${test.id}`;
       console.log(`- ${caseKey}`);
-      const reply = await callChatCompletions(config.provider, messages);
+      const generation = await generateGuardedReply(config.provider, messages, {
+        input: test.input,
+        retrieved,
+        maxRetries: 1
+      });
+      const reply = generation.reply;
+      const firstAttempt = generation.attempts[0];
       summary.results.push({
         case_key: caseKey,
         template_id: template.id,
@@ -277,6 +299,15 @@ async function main() {
         focus: test.focus,
         input: test.input,
         reply,
+        generation: {
+          retried: generation.retried,
+          retry_count: generation.retry_count,
+          initial_reply: firstAttempt.reply,
+          initial_boundary_risks: firstAttempt.assessment.boundary_risks,
+          initial_copy_risks: firstAttempt.assessment.copy_risks.length,
+          final_boundary_risks: generation.assessment.boundary_risks,
+          final_copy_risks: generation.assessment.copy_risks.length
+        },
         metrics: basicMetrics(test.input, reply, retrieved),
         retrieved_memories: retrieved.memories.slice(0, 3).map((memory) => ({
           id: memory.id,

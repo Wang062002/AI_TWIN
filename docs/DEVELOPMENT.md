@@ -120,7 +120,8 @@ local chat records
 -> few-shot / persona / safety prompt
 -> API model generation
 -> response guard risk check
+-> one guarded regeneration attempt when needed
 -> pending memory confirmation
 ```
 
-`src/response_guard.js` is the shared response-check layer. It currently detects identity-boundary issues, unsupported current real-world status or offline commitments, and near-verbatim copying from retrieved dialogue. Evaluation reports record these risks, and the chat demo prints them for manual review. The next product step is to use the same guard for one automatic regeneration attempt before showing a risky reply to users.
+`src/response_guard.js` is the shared response-check layer. It currently detects identity-boundary issues, unsupported current real-world status or offline commitments, and near-verbatim copying from retrieved dialogue. `src/generation.js` wraps API generation with one guarded regeneration attempt when the first draft has guard risks. Evaluation reports record the initial draft, retry status, and final risks; the chat demo prints retry information for manual review.

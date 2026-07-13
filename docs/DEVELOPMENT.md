@@ -52,6 +52,8 @@ npm run chat:mock -- --person {person_id}
 npm run eval -- --person {person_id}
 ```
 
+The chat demo stores local session history as JSONL under `data/chat_sessions/{person_id}/{session_id}.jsonl`. This is a temporary file-based MVP store, not a database, and is ignored by Git. Use `--session {session_id}` to test separate local chat sessions.
+
 Evaluation versions are isolated under `eval/results/{person_id}/Vn/` so reports only compare the same digital twin.
 
 Friend/persona evaluations should include paraphrased inputs that are similar in topic and tone but not exact historical user messages. This helps distinguish style generalization from direct retrieval copying.
@@ -96,6 +98,7 @@ Never commit:
 - `data/raw/`
 - `data/knowledge_bases/`
 - `data/person_configs/`
+- `data/chat_sessions/`
 - API keys
 - real user chat exports
 - files that can identify a user or target person

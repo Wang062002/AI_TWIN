@@ -1,5 +1,6 @@
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { appendChatTurn, loadChatHistory, toModelHistory } from "../src/chat_history.js";
 import { loadConfig } from "../src/config.js";
 import { generateGuardedReply } from "../src/generation.js";
 import { loadKnowledgeBaseFromDir } from "../src/kb.js";
@@ -43,21 +44,26 @@ async function main() {
   const person = String(args.person).trim();
   const mock = Boolean(args.mock);
   const preview = Boolean(args.preview);
+  const sessionId = String(args.session || "default").trim();
+  const maxHistoryTurns = Number(args["max-history-turns"] || 6);
   const config = loadConfig();
   const personConfig = loadPersonConfig(person, { config: args.config });
   const kb = loadKnowledgeBaseFromDir(personConfig.knowledge_base_output);
   const oneShotMessage = args.message ? String(args.message).trim() : "";
+  const history = loadChatHistory(person, { sessionId });
   const rl = oneShotMessage ? null : readline.createInterface({ input, output });
 
   console.log(`AI Twin chat demo: ${kb.profile.display_name}`);
   console.log(mock ? "Mode: mock, no real API call." : `Model: ${config.provider.model || "(not configured)"}`);
+  console.log(`Session: ${sessionId}, loaded ${Math.floor(history.length / 2)} previous turns.`);
   if (!oneShotMessage) console.log("Type exit to quit.\n");
 
   async function handleMessage(userInput) {
     if (!userInput) return;
 
     const retrieved = retrieveContext(kb, userInput, config.retrieval);
-    const messages = buildMessages(kb, userInput, retrieved);
+    const baseMessages = buildMessages(kb, userInput, retrieved);
+    const messages = withChatHistory(baseMessages, toModelHistory(history, maxHistoryTurns));
 
     if (preview || process.env.AI_TWIN_DEBUG === "true") {
       console.log("\n[debug] retrieved memories:", retrieved.memories.map((m) => m.id).join(", ") || "none");
@@ -100,6 +106,18 @@ async function main() {
       console.log(`[Pending memory] ${pending.candidate_memory}`);
       console.log("Later product UI should ask: remember / edit / delete.\n");
     }
+    appendChatTurn(person, {
+      user: userInput,
+      assistant: reply,
+      metadata: {
+        session_id: sessionId,
+        mock,
+        boundary_risks: assessment.boundary_risks,
+        copy_risks: assessment.copy_risks.length,
+        retried: Boolean(generation?.retried)
+      }
+    }, { sessionId });
+    history.push({ role: "user", content: userInput }, { role: "assistant", content: reply });
   }
 
   if (oneShotMessage) {
@@ -115,6 +133,25 @@ async function main() {
   }
 
   rl.close();
+}
+
+function withChatHistory(messages, historyMessages) {
+  if (!historyMessages.length) return messages;
+  const [system, context, finalInstruction] = messages;
+  return [
+    system,
+    context,
+    {
+      role: "user",
+      content: [
+        "Recent chat history in this same local session. Use only as short-term conversational context.",
+        "Do not treat it as confirmed durable memory unless the user explicitly confirms it.",
+        "",
+        ...historyMessages.map((item) => `${item.role === "user" ? "User" : "Twin"}: ${item.content}`)
+      ].join("\n")
+    },
+    finalInstruction
+  ];
 }
 
 main().catch((error) => {

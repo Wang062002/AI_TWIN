@@ -3,6 +3,7 @@ node_modules/
 data/raw/
 data/knowledge_bases/
 data/person_configs/
+data/chat_sessions/
 eval/results/
 *.log
 *.tmp

@@ -10,7 +10,7 @@
     "chat:mock": "node scripts/chat_demo.js --mock",
     "chat:mom": "node scripts/chat_demo.js --person mom",
     "chat:mom:mock": "node scripts/chat_demo.js --person mom --mock",
-    "check": "node --check scripts/build_kb.js && node --check scripts/chat_demo.js && node --check scripts/evaluate_person_api.js && node --check src/config.js && node --check src/generation.js && node --check src/kb.js && node --check src/person_config.js && node --check src/prompt.js && node --check src/provider.js && node --check src/response_guard.js && node --check src/retriever.js && node --check src/text.js",
+    "check": "node --check scripts/build_kb.js && node --check scripts/chat_demo.js && node --check scripts/evaluate_person_api.js && node --check scripts/check_response_guard.js && node --check src/config.js && node --check src/generation.js && node --check src/kb.js && node --check src/person_config.js && node --check src/prompt.js && node --check src/provider.js && node --check src/response_guard.js && node --check src/retriever.js && node --check src/text.js && node scripts/check_response_guard.js",
     "eval": "node scripts/evaluate_person_api.js",
     "eval:mom": "node scripts/evaluate_person_api.js --person mom"
   },

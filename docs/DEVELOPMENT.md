@@ -36,6 +36,8 @@ npm run build:kb:mom
 npm run chat:mom:mock
 ```
 
+`npm run check` also runs a local response-guard smoke test for identity disclosure, unsupported current real-world status, and historical-copy detection. This test uses synthetic strings only; it does not read private chat data or call external APIs.
+
 For API behavior checks:
 
 ```powershell
